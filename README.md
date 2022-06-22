@@ -1,7 +1,7 @@
 
 # Forecasting Future World Events with Neural Networks
 
-<img align="center" src="assets/splash.pdf" width="750">
+<img align="center" src="assets/splash.jpg" width="750">
 
 ## Introduction
 
@@ -31,10 +31,18 @@ Each question has the following fields:
    }
   ```
 
-## Numerical Calibration Dataset
-The dataset of numerical estimation questions can be downloaded [here](https://drive.google.com/drive/folders/1OAwiW47rXRIQ543YIXWSiqv5XVtostbR?usp=sharing).
+We obtained permission from [Metaculus](https://www.metaculus.com/) to host the dataset on GitHub for research purposes only.
+
+## IntervalQA
+The dataset of numerical calilbration questions can be downloaded [here](https://drive.google.com/drive/folders/1OAwiW47rXRIQ543YIXWSiqv5XVtostbR?usp=sharing).
 
 ## Citation
 
 If you find this useful in your research, please consider citing:
 
+    @article{zou2022forecasting,
+      title={Forecasting Future World Events with Neural Networks},
+      author={Andy Zou and Tristan Xiao and Ryan Jia and Joe Kwon and Mantas Mazeika and Richard Li and Dawn Song and Jacob Steinhardt and Owain Evans and Dan Hendrycks},
+      journal={arXiv preprint arXiv:},
+      year={2022}
+    }
