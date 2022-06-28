@@ -12,29 +12,27 @@ Forecasting future world events is a challenging but valuable task. Forecasts of
 
 ## Autocast Dataset
 
-The latest version of the Autocast dataset and the collection of news articles can be downloaded [here](https://drive.google.com/drive/folders/16UIv25P2GL5LMLrFYkP-s_WDMHm_OzYG?usp=sharing).
+The latest version of the Autocast dataset and the collection of news articles can be downloaded [here](https://drive.google.com/drive/folders/16UIv25P2GL5LMLrFYkP-s_WDMHm_OzYG?usp=sharing). For more details on how to use the Autocast dataset, please refer to our short demonstration in `usage.ipynb`.
 
 Each question has the following fields:
   ```json
   {
-    'id':                'unique identifier (str)',
-    'question':          'question body (str)',
-    'background':        'question context/details (str)',
-    'qtype':             'question type (str)',
-    'status':            'question status (str)',
-    'choices':           'choices or possible ranges (List or Dict)',
-    'answer':            'question resolution (str or float)',
-    'crowd':             'human crowd forecasts over time (List)',
-    'publish_time':      'publish timestamp (str)',
-    'close_time':        'close timestamp (str)',
-    'prediction_count':  'number of crowd predictions (int)',
-    'forecaster_count':  'number of crowd forecasters (int)',
-    'tags':              'question category (List)',
-    'source_links':      'source links from comments (List)'
+    "id":                "unique identifier (str)",
+    "question":          "question body (str)",
+    "background":        "question context/details (str)",
+    "qtype":             "question type (str)",
+    "status":            "question status (str)",
+    "choices":           "choices or possible ranges (List or Dict)",
+    "answer":            "question resolution (str or float)",
+    "crowd":             "human crowd forecasts over time (List)",
+    "publish_time":      "publish timestamp (str)",
+    "close_time":        "close timestamp (str)",
+    "prediction_count":  "number of crowd predictions (int)",
+    "forecaster_count":  "number of crowd forecasters (int)",
+    "tags":              "question category (List)",
+    "source_links":      "source links from comments (List)"
   }
 ```
-
-For more details on how to use the Autocast dataset, please refer to our short demonstration in `usage.ipynb`.
 
 We obtained permission from [Metaculus](https://www.metaculus.com/) to host the dataset on GitHub for research purposes only.
 
