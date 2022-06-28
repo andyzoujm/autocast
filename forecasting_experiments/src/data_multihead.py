@@ -78,7 +78,7 @@ class Dataset(torch.utils.data.Dataset):
             return target + ' </s>'
         elif 'answers' in example:
             if isinstance(example['choices'], dict):
-                return example['answers'][1] #+ ' </s>'
+                return example['answers'][0] #+ ' </s>'
             return random.choice(example['answers']) + ' </s>'
         else:
             return None

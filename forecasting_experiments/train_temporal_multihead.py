@@ -541,7 +541,7 @@ class ForecastingDataset(object):
         if cat == 0:
             true_target = STR2BOOL[example['answers'][0]]
         elif cat == 2:
-            true_target = float(example['answers'][1])
+            true_target = float(example['answers'][0])
         elif cat == 1:
             true_target = int(ord(example['answers'][0]) - ord('A'))
 
