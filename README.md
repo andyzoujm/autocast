@@ -2,7 +2,7 @@
 # Forecasting Future World Events with Neural Networks
 
 This is the repository for "[Forecasting Future World Events with Neural Networks]()"  
-by [Andy Zou](https://andyzoujm.github.io/), [Tristan Xiao](https://www.linkedin.com/in/tristan-xiao/), [Ryan Jia](https://www.linkedin.com/in/ryanjia/), Joe Kwon, [Mantas Mazeika](https://www.linkedin.com/in/mmazeika/), Richard Li, [Dawn Song](https://people.eecs.berkeley.edu/~dawnsong/), [Jacob Steinhardt](https://www.stat.berkeley.edu/~jsteinhardt/), [Owain Evans](https://owainevans.github.io/), and [Dan Hendrycks](https://danhendrycks.com/).
+by [Andy Zou](https://andyzoujm.github.io/), [Tristan Xiao](https://www.linkedin.com/in/tristan-xiao/), [Ryan Jia](https://www.linkedin.com/in/ryanjia/), [Joe Kwon](joekwon.io), [Mantas Mazeika](https://www.linkedin.com/in/mmazeika/), [Richard Li](https://www.linkedin.com/in/lirichard23/), [Dawn Song](https://people.eecs.berkeley.edu/~dawnsong/), [Jacob Steinhardt](https://www.stat.berkeley.edu/~jsteinhardt/), [Owain Evans](https://owainevans.github.io/), and [Dan Hendrycks](https://danhendrycks.com/).
 
 <img align="center" src="assets/splash.png" width="750">
 

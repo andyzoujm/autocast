@@ -1,3 +1,5 @@
+## Contents
+
 This folder contains reference implementation for FiD Static and FiD Temporal experiments.
 
 FiD Temporal takes in train/test Json files where each item has the following format:
@@ -25,3 +27,7 @@ FiD Temporal takes in train/test Json files where each item has the following fo
 ```
 
 Train/Test Json files for FiD Static can be converted from temporal data with `temporal_to_static_data_converter.py`.
+
+## Dependencies
+
+[Tranformers](https://huggingface.co/docs/transformers/index) (version 3.0.2)

@@ -23,7 +23,7 @@ export EVAL=dataset/${RETR}_temporal_test.json
 
 export LOAD=t5_${MODELSIZE}_top10_linear_wdecay1e-2_lr5e-5_bs8_ep10_retrbm25ce # load FiD Static model
 
-python train_temporal_multihead.py \
+python train_fid_temporal.py \
         --max_seq_len $seqlen \
         --finetune_encoder $finetune_encoder \
         --adjust_targets $adjust_targets \

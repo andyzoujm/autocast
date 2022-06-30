@@ -17,7 +17,7 @@ export RETR=bm25ce
 export TRAIN=dataset/${RETR}_static_train.json
 export EVAL=dataset/${RETR}_static_test.json
 
-export NGPU=1; python -m torch.distributed.launch --nproc_per_node=$NGPU --master_port=10000 train_static_multihead.py \
+export NGPU=1; python -m torch.distributed.launch --nproc_per_node=$NGPU --master_port=10000 train_fid_static.py \
         --model_size $MODELSIZE \
         --per_gpu_batch_size $BSZ \
         --epochs $EPOCHS \
