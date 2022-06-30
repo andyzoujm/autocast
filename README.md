@@ -36,7 +36,7 @@ Each question has the following fields:
 
 We obtained permission from [Metaculus](https://www.metaculus.com/) to host the dataset on GitHub for research purposes only.
 
-## IntervalQA
+## IntervalQA Dataset
 
 Motivated by the difficulty of forecasting numbers across orders of magnitude (e.g. global cases of COVID-19 in 2022), we also curate IntervalQA, a dataset of numerical questions and metrics for calibration.
 

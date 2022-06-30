@@ -244,7 +244,7 @@ def main():
 
 
     # confidence intervals we want
-    confidence_intervals = list(range(50,100,5))
+    confidence_levels = list(range(50,100,5))
 
     # Labels
     if args.task_name is not None:
@@ -258,7 +258,7 @@ def main():
         # Trying to have good defaults here, don't hesitate to tweak to your needs.
         is_regression = raw_datasets["train"].features["label"].dtype in ["float32", "float64"]
         if is_regression:
-            num_labels = len(confidence_intervals) * 2 + 1 # plus one point estimate
+            num_labels = len(confidence_levels) * 2 + 1 # plus one point estimate
         else:
             # A useful fast method:
             # https://huggingface.co/docs/datasets/package_reference/main_classes.html#datasets.Dataset.unique
@@ -463,7 +463,7 @@ def main():
     ###############################
 
 
-    num_intervals = len(confidence_intervals)
+    num_intervals = len(confidence_levels)
     # interval_criterion = nn.HuberLoss(reduction='none')
     # pe_criterion = nn.HuberLoss(reduction='none')
 
@@ -512,7 +512,7 @@ def main():
             logits = outputs.logits
 
             lowers, uppers, point_estimates, interval_lengths = get_confidence_intervals(logits)
-            containment, ci_error = utils.evaluate(lowers, uppers, labels, confidence_intervals)
+            containment, ci_error = utils.evaluate(lowers, uppers, labels, confidence_levels)
             low_containment_mask = ci_error < 0
             train_containment_tensors.append(containment)
 
@@ -549,9 +549,9 @@ def main():
                 break
         
         train_metric = torch.cat(train_containment_tensors).mean(dim=0) * 100
-        train_adaptive_rms = utils.adaptive_binning_rms(train_containment_tensors, train_labels, confidence_intervals)
+        train_adaptive_rms = utils.adaptive_binning_rms(train_containment_tensors, train_labels, confidence_levels)
         logger.info(f"epoch {epoch} | train rms: {utils.round_tensor(train_metric, 1)}")
-        logger.info(f"epoch {epoch} | train rms: {utils.rms(train_metric, confidence_intervals):.2f} | pe dist: {np.median(train_pe_dist):.2f} | interval len: {np.mean(np.median(torch.stack(train_interval_length), axis=0)):.2f} | lengths: {np.around(np.median(torch.stack(train_interval_length), axis=0), 2)}")
+        logger.info(f"epoch {epoch} | train rms: {utils.rms(train_metric, confidence_levels):.2f} | pe dist: {np.median(train_pe_dist):.2f} | interval len: {np.mean(np.median(torch.stack(train_interval_length), axis=0)):.2f} | lengths: {np.around(np.median(torch.stack(train_interval_length), axis=0), 2)}")
         logger.info(f"epoch {epoch} | train binning rms: {utils.round_tensor(train_adaptive_rms, 1)}")
         logger.info(f"epoch {epoch} | train binning rms: {np.mean(train_adaptive_rms.numpy()):.2f}")
 
@@ -576,7 +576,7 @@ def main():
                 logits = outputs.logits
 
                 lowers, uppers, point_estimates, interval_lengths = get_confidence_intervals(logits)
-                containment, _ = utils.evaluate(lowers, uppers, labels, confidence_intervals)
+                containment, _ = utils.evaluate(lowers, uppers, labels, confidence_levels)
                 eval_containment_tensors.append(containment)
 
                 # Saving the results
@@ -598,9 +598,9 @@ def main():
                 #     logger.info(f"{torch.exp(labels[:5])}")
 
         eval_metric = torch.cat(eval_containment_tensors).mean(dim=0) * 100
-        eval_adaptive_rms = utils.adaptive_binning_rms(eval_containment_tensors, eval_labels, confidence_intervals)
+        eval_adaptive_rms = utils.adaptive_binning_rms(eval_containment_tensors, eval_labels, confidence_levels)
         logger.info(f"epoch {epoch} | eval rms: {utils.round_tensor(eval_metric, 1)}")
-        logger.info(f"epoch {epoch} | eval rms: {utils.rms(eval_metric, confidence_intervals):.2f} | pe dist: {np.median(eval_pe_dist):.2f} | interval len: {np.mean(np.median(torch.stack(eval_interval_length), axis=0)):.2f} | lengths: {np.around(np.median(torch.stack(eval_interval_length), axis=0), 2)}")
+        logger.info(f"epoch {epoch} | eval rms: {utils.rms(eval_metric, confidence_levels):.2f} | pe dist: {np.median(eval_pe_dist):.2f} | interval len: {np.mean(np.median(torch.stack(eval_interval_length), axis=0)):.2f} | lengths: {np.around(np.median(torch.stack(eval_interval_length), axis=0), 2)}")
         logger.info(f"epoch {epoch} | eval binning rms: {utils.round_tensor(eval_adaptive_rms, 1)}")
         logger.info(f"epoch {epoch} | eval binning rms: {np.mean(eval_adaptive_rms.numpy()):.2f}\n")
 
