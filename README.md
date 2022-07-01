@@ -1,7 +1,7 @@
 
 # Forecasting Future World Events with Neural Networks
 
-This is the repository for "[Forecasting Future World Events with Neural Networks]()"  
+This is the repository for "[Forecasting Future World Events with Neural Networks](http://arxiv.org/abs/2206.15474)"  
 by [Andy Zou](https://andyzoujm.github.io/), [Tristan Xiao](https://www.linkedin.com/in/tristan-xiao/), [Ryan Jia](https://www.linkedin.com/in/ryanjia/), [Joe Kwon](joekwon.io), [Mantas Mazeika](https://www.linkedin.com/in/mmazeika/), [Richard Li](https://www.linkedin.com/in/lirichard23/), [Dawn Song](https://people.eecs.berkeley.edu/~dawnsong/), [Jacob Steinhardt](https://www.stat.berkeley.edu/~jsteinhardt/), [Owain Evans](https://owainevans.github.io/), and [Dan Hendrycks](https://danhendrycks.com/).
 
 <img align="center" src="assets/splash.png" width="750">
@@ -46,9 +46,9 @@ The IntervalQA dataset can be downloaded [here](https://drive.google.com/drive/f
 
 If you find this useful in your research, please consider citing:
 
-    @article{zou2022forecasting,
+    @article{zouforecasting2022,
       title={Forecasting Future World Events with Neural Networks},
       author={Andy Zou and Tristan Xiao and Ryan Jia and Joe Kwon and Mantas Mazeika and Richard Li and Dawn Song and Jacob Steinhardt and Owain Evans and Dan Hendrycks},
-      journal={arXiv preprint arXiv:},
+      journal={arXiv preprint arXiv:2206.15474},
       year={2022}
     }
