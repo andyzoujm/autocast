@@ -12,7 +12,7 @@ Forecasting future world events is a challenging but valuable task. Forecasts of
 
 ## Autocast Dataset
 
-The latest version of the Autocast dataset and the collection of news articles can be downloaded [here](https://drive.google.com/drive/folders/16UIv25P2GL5LMLrFYkP-s_WDMHm_OzYG?usp=sharing). For more details on how to use the Autocast dataset, please refer to our short demonstration in `usage.ipynb`.
+The latest version of the [Autocast dataset can be downloaded here](https://people.eecs.berkeley.edu/~hendrycks/autocast.tar.gz). The collection of news articles will be released soon. For more details on how to use the Autocast dataset, please refer to our short demonstration in `usage.ipynb`.
 
 Each question has the following fields:
   ```json
@@ -40,7 +40,7 @@ We obtained permission from [Metaculus](https://www.metaculus.com/) to host the 
 
 Motivated by the difficulty of forecasting numbers across orders of magnitude (e.g. global cases of COVID-19 in 2022), we also curate IntervalQA, a dataset of numerical questions and metrics for calibration.
 
-The IntervalQA dataset can be downloaded [here](https://drive.google.com/drive/folders/1OAwiW47rXRIQ543YIXWSiqv5XVtostbR?usp=sharing).
+[Download the IntervalQA dataset here](https://people.eecs.berkeley.edu/~hendrycks/intervalqa.tar.gz).
 
 ## Citation
 
