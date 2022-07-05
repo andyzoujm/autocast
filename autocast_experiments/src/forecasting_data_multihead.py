@@ -5,11 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-import random
 import json
-import numpy as np
-import pickle
-from torch._C import TensorType
 
 class FiDDataset(torch.utils.data.Dataset):
     def __init__(self,
@@ -125,31 +121,6 @@ class Collator(object):
         index = torch.tensor([ex['index'] for ex in batch])
         targets = [ex['target'] for ex in batch]
 
-        
-        ########## Not usuful for GPT-2 based forecasting ##########
-        # tfmc_indices, re_indices, tf_indices, mc_indices = [], [], [], []
-        # for i in range(len(targets)):
-        #     if not isinstance(choices[i], dict):
-        #         tfmc_indices.append(i)
-        #         if len(choices) > 2:
-        #             mc_indices.append(i)
-        #         else:
-        #             tf_indices.append(i)
-        #     else:
-        #         re_indices.append(i)
-
-        # tfmc_len, re_len, tf_len, mc_len = len(tfmc_indices), len(re_indices), len(tf_indices), len(mc_indices)
-        # length = max(tfmc_len, re_len, tf_len, mc_len)
-        # if tfmc_len < length:
-        #     tfmc_indices = tfmc_indices + [-1] * (length - tfmc_len)
-        # if re_len < length:
-        #     re_indices = re_indices + [-1] * (length - re_len)
-        # if tf_len < length:
-        #     tf_indices = tf_indices + [-1] * (length - tf_len)
-        # if mc_len < length:
-        #     mc_indices = mc_indices + [-1] * (length - mc_len)
-        # lengths = torch.tensor([tfmc_len, re_len, tf_len, mc_len])
-        # indices = torch.tensor([tfmc_indices] + [re_indices] + [tf_indices] + [mc_indices])
         indices, lengths = None, None
         labels = torch.tensor(targets).view(-1, 1)
         

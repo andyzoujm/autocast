@@ -8,7 +8,6 @@ import torch
 import random
 import json
 import numpy as np
-from torch._C import TensorType
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self,
@@ -247,75 +246,3 @@ def load_data(data_path=None, global_rank=-1, world_size=-1):
         data.close()
 
     return examples
-
-class RetrieverCollator(object):
-    def __init__(self, tokenizer, passage_maxlength=200, question_maxlength=40):
-        self.tokenizer = tokenizer
-        self.passage_maxlength = passage_maxlength
-        self.question_maxlength = question_maxlength
-
-    def __call__(self, batch):
-        index = torch.tensor([ex['index'] for ex in batch])
-
-        question = [ex['question'] for ex in batch]
-        question = self.tokenizer.batch_encode_plus(
-            question,
-            return_tensors="pt",
-            padding='max_length',
-            max_length=self.question_maxlength,
-            truncation=True
-        )
-        question_ids = question['input_ids']
-        question_mask = question['attention_mask'].bool()
-
-        if batch[0]['scores'] is None or batch[0]['passages'] is None:
-            return index, question_ids, question_mask, None, None, None
-
-        scores = [ex['scores'] for ex in batch]
-        scores = torch.stack(scores, dim=0)
-
-        passages = [ex['passages'] for ex in batch]
-        passage_ids, passage_masks = encode_passages(
-            passages,
-            self.tokenizer,
-            self.passage_maxlength
-        )
-
-        return (index, question_ids, question_mask, passage_ids, passage_masks, scores)
-
-class TextDataset(torch.utils.data.Dataset):
-    def __init__(self,
-                 data,
-                 title_prefix='title:',
-                 passage_prefix='context:'):
-        self.data = data
-        self.title_prefix = title_prefix
-        self.passage_prefix = passage_prefix
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        example = self.data[index]
-        text = self.title_prefix + " " + example[2] + " " + \
-            self.passage_prefix + " " + example[1]
-        return example[0], text
-
-class TextCollator(object):
-    def __init__(self, tokenizer, maxlength=200):
-        self.tokenizer = tokenizer
-        self.maxlength = maxlength
-
-    def __call__(self, batch):
-        index = [x[0] for x in batch]
-        encoded_batch = self.tokenizer.batch_encode_plus(
-            [x[1] for x in batch],
-            padding='max_length',
-            return_tensors="pt",
-            max_length=self.maxlength,
-            truncation=True
-        )
-        text_ids = encoded_batch['input_ids']
-        text_mask = encoded_batch['attention_mask'].bool()
-
-        return index, text_ids, text_mask

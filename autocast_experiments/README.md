@@ -31,3 +31,4 @@ Train/Test Json files for FiD Static can be converted from temporal data with `t
 ## Dependencies
 
 [Tranformers](https://huggingface.co/docs/transformers/index) (version 3.0.2)
+Code adapted from the [FiD repository](https://github.com/facebookresearch/FiD).
