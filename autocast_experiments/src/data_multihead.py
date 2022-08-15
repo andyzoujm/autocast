@@ -86,16 +86,15 @@ class Dataset(torch.utils.data.Dataset):
         example = self.data[index]
         question = self.question_prefix + " " + example['question']
         choices = example['choices']
-        target = self.get_target(example)
-        field = example['field']
+        target = str(self.get_target(example))
 
         # Append available choices for MC questions
         if (not target[:-5].lower().strip() in ['yes', 'no']) and not isinstance(choices, dict):
             choices = [chr(i + ord('A')) + ': ' + choices[i] for i in range(len(choices))]
             question = question + ' ' + self.choices_prefix + ' ' + ' | '.join(choices) + '.'
         if isinstance(choices, dict):
-            min, max = choices['min'], choices['max']
-            question = question + ' ' + self.bound_prefix + ' min: ' + min + ' | max: ' + max + '.'
+            min, max, deriv = str(choices['min']), str(choices['max']), str(choices['deriv_ratio'])
+            question = question + ' ' + self.bound_prefix + ' min: ' + min + ' | max: ' + max + ' | deriv: ' + deriv + '.'
 
         if 'ctxs' in example and len(example['ctxs']) > 0 and self.n_context is not None:
             f = self.title_prefix + " {} " + self.passage_prefix + " {}"
@@ -114,12 +113,12 @@ class Dataset(torch.utils.data.Dataset):
 
         return {
             'index' : index,
+            'id': example['question_id'],
             'question' : question,
             'target' : target,
             'choices': choices,
             'passages' : passages,
             'scores' : scores,
-            'field' : field
         }
 
     def sort_data(self):
@@ -159,9 +158,9 @@ class Collator(object):
     def __call__(self, batch):
         assert(batch[0]['target'] != None)
         index = torch.tensor([ex['index'] for ex in batch])
+        ids = [ex['id'] for ex in batch]
         targets = [ex['target'] for ex in batch]
         choices = [ex['choices'] for ex in batch]
-        fields = [ex['field'] for ex in batch]
 
         tfmc_indices, re_indices, tf_indices, mc_indices = [], [], [], []
         for i in range(len(targets)):
@@ -219,7 +218,7 @@ class Collator(object):
                                                      self.tokenizer,
                                                      self.text_maxlength)
 
-        return (index, labels, indices, lengths, passage_ids, passage_masks, fields)
+        return (index, ids, labels, indices, lengths, passage_ids, passage_masks)
 
 def load_data(data_path=None, global_rank=-1, world_size=-1):
     assert data_path

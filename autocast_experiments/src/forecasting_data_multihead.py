@@ -56,8 +56,8 @@ class FiDDataset(torch.utils.data.Dataset):
             choices = [str(i) + ': ' + choices[i] for i in range(len(choices))]
             question = question + ' ' + self.choices_prefix + ' ' + ' | '.join(choices) + '.'
         elif self.cat == 2:
-            min, max = choices['min'], choices['max']
-            question = question + ' ' + self.bound_prefix + ' min: ' + min + ' | max: ' + max + '.'
+            min, max, deriv = str(choices['min']), str(choices['max']), str(choices['deriv_ratio'])
+            question = question + ' ' + self.bound_prefix + ' min: ' + min + ' | max: ' + max + ' | deriv: ' + deriv + '.'
 
         if 'ctxs' in example and len(example['ctxs']) > 0 and self.n_context is not None:
             f = self.title_prefix + " {} " + self.passage_prefix + " {}"

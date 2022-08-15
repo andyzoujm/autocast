@@ -53,7 +53,7 @@ def train(model, optimizer, scheduler, step, train_dataset, eval_dataset, opt, c
 
         for i, batch in enumerate(train_dataloader):
             step += 1
-            (_, labels, indices, lengths, context_ids, context_mask, _) = batch
+            (_, _, labels, indices, lengths, context_ids, context_mask) = batch
 
             train_loss, _, (loss_tfmc, loss_re) = model(
                 input_ids=context_ids.cuda(),
@@ -121,13 +121,12 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
     total = 0
     tf_em, mc_em, re_em, exactmatch = [], [], [], []
     tf_predictions, mc_predictions, re_predictions, my_predictions = [], [], [], []
-    fields_tf, fields_mc, fields_re = [], [], []
     model = model.module if hasattr(model, "module") else model
     device = torch.device('cpu')
-    raw_logits = []
+    raw_logits, qids, raw_answers = [],[],[]
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            (idx, labels, indices, lengths, context_ids, context_mask, fields) = batch
+            (idx, ids, labels, indices, lengths, context_ids, context_mask) = batch
 
             re_outputs = model.forward(
                 input_ids=context_ids.cuda(),
@@ -151,10 +150,6 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
             indices_re = indices[1][:lengths[1]]
             indices_tf = indices[2][:lengths[2]]
             indices_mc = indices[3][:lengths[3]]
-            
-            fields_re.extend(list(np.take(fields, indices_re.detach().to(device).tolist())))
-            fields_tf.extend(list(np.take(fields, indices_tf.detach().to(device).tolist())))
-            fields_mc.extend(list(np.take(fields, indices_mc.detach().to(device).tolist())))
 
             labels_re = torch.index_select(labels, 0, indices_re)[:, 0].view(-1).detach().to(device).tolist()
 
@@ -165,7 +160,7 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
                 
                 ans = tokenizer.decode(o, skip_special_tokens=True)
 
-                gold = dataset.get_example(idx[k])['answers']
+                gold = [str(dataset.get_example(idx[k])['answers'][0])]
                 score = src.evaluation.ems(ans, gold)
                 total += 1
 
@@ -216,13 +211,15 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
                         temp_predictions.append(re_ans[re_count])
                         raw_logits.append(re_outputs[re_count])
                     re_count += 1
+                qids.append(ids[i])
+                raw_answers.append(str(dataset.get_example(idx[i])['answers'][0]))
                     
             exactmatch.extend(temp_scores)
             my_predictions.extend(temp_predictions)
     
     
     if opt.is_distributed:
-        objects = [tf_em, mc_em, re_em, tf_predictions, mc_predictions, re_predictions, fields_tf, fields_mc, fields_re, raw_logits]
+        objects = [tf_em, mc_em, re_em, tf_predictions, mc_predictions, re_predictions, raw_logits, qids, raw_answers]
         all_objects = [None for _ in range(opt.world_size)]
         dist.gather_object(objects, all_objects if dist.get_rank() == 0 else None)
         
@@ -231,15 +228,8 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
             for rank, obj_list in enumerate(all_objects):
                 for i, obj in enumerate(obj_list):
                     main_list[i] += obj # extend list to gather
-            tf_em, mc_em, re_em, tf_predictions, mc_predictions, re_predictions, fields_tf, fields_mc, fields_re, raw_logits = main_list
-            fields_tf = np.array(fields_tf)
-            fields_mc = np.array(fields_mc)
-            fields_re = np.array(fields_re)
-    else:
-        fields_tf = np.array(fields_tf)
-        fields_mc = np.array(fields_mc)
-        fields_re = np.array(fields_re)
-    
+            tf_em, mc_em, re_em, tf_predictions, mc_predictions, re_predictions, raw_logits, qids, raw_answers = main_list
+
     if mode == 'eval' and (not opt.is_distributed or opt.is_main):
         if len(tf_em) == 0:
             logger.info(f"EVAL: For T/F: Predicted N/A")
@@ -275,9 +265,8 @@ def evaluate(model, dataset, tokenizer, collator, opt, epoch, mode='eval'):
 
     if mode == 'eval' and (not opt.is_distributed or opt.is_main):
         with open(checkpoint_path / f'results_epoch{epoch}.obj', 'wb') as f:
-            pickle.dump(raw_logits, f)
+            pickle.dump(list(zip(qids, raw_answers, raw_logits)), f)
 
-    # For now we count the regression error rate within 4% as an "exact match"
     exactmatch, total = src.util.weighted_average(np.mean(exactmatch)/2, total, opt)
     return exactmatch
 
@@ -332,7 +321,7 @@ if __name__ == "__main__":
     eval_dataset = src.data_multihead.Dataset(eval_examples, opt.n_context, over_sample=False)
 
     if not checkpoint_exists and opt.model_path == "none":
-        t5 = transformers.T5ForConditionalGeneration.from_pretrained(model_name)
+        t5 = transformers.T5ForConditionalGeneration.from_pretrained(model_name, cache_dir='huggingface_cache')
         model = src.model_multihead.FiDT5(t5.config)
         model.load_t5_multihead(t5.state_dict())
         model = model.to(opt.local_rank)

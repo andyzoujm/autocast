@@ -1,10 +1,10 @@
 #!/bin/sh
 
 export READER=t5
-export MODELSIZE=large
-export TOPN=1
+export MODELSIZE=3b
+export TOPN=2
 
-export seqlen=64 # maximum lookback days
+export seqlen=128 # maximum lookback days
 export finetune_encoder=0 # freeze FiD Static model
 export adjust_targets=1 # improve crowd forecasts with true resolution
 
@@ -14,14 +14,14 @@ export OPTIMTYPE=adamw
 export SCHEDULERTYPE=fixed
 export WDECAY=1e-2
 export LR=5e-5
-export TRAINSIZE=4401 # number of train examples
+export TRAINSIZE=4387 # number of train examples
 export WARMUP=100
 
 export RETR=bm25ce
-export TRAIN=dataset/${RETR}_temporal_train.json
-export EVAL=dataset/${RETR}_temporal_test.json
+export TRAIN=data/temporal_train.json
+export EVAL=data/temporal_test.json
 
-export LOAD=t5_${MODELSIZE}_top10_linear_wdecay1e-2_lr5e-5_bs8_ep10_retrbm25ce # load FiD Static model
+# export LOAD=t5_${MODELSIZE}_top10_linear_wdecay1e-2_lr5e-5_bs8_ep10_retrbm25ce # load FiD Static model
 
 python train_fid_temporal.py \
         --max_seq_len $seqlen \
@@ -29,13 +29,13 @@ python train_fid_temporal.py \
         --adjust_targets $adjust_targets \
         --model_size $MODELSIZE \
         --per_gpu_batch_size $BSZ \
-        --epochs $numepochs \
+        --epochs $EPOCHS \
         --answer_maxlength 15 \
         --text_maxlength 512 \
         --train_data $TRAIN \
         --eval_data $EVAL \
         --n_context $TOPN \
-        --name temporal_${READER}_${MODELSIZE}_top${TOPN}_seqlen${seqlen}_${SCHEDULERTYPE}_wdecay${WDECAY}_lr${LR}_bs${BSZ}_ep${numepochs}_retr${RETR}_finetune${finetune_encoder}_adjusttarget${adjust_targets} \
+        --name temporal_${READER}_${MODELSIZE}_top${TOPN}_seqlen${seqlen}_${SCHEDULERTYPE}_wdecay${WDECAY}_lr${LR}_bs${BSZ}_ep${EPOCHS}_retr${RETR}_finetune${finetune_encoder}_adjusttarget${adjust_targets} \
         --optim $OPTIMTYPE \
         --lr $LR \
         --weight_decay $WDECAY \
