@@ -7,7 +7,7 @@ FiD Temporal takes in train/test Json files where each item has the following fo
     {
         "question_id": "question id",
         "question": "question (str)",
-        "answers": "acceptable answers (List) (e.g., ['yes', 'Yes'] or ['C', 'c'] or [0.32])",
+        "answers": "acceptable answers (List) (e.g., ['yes', 'Yes'] or ['C', 'c'] or ['0.32'])",
         "choices": "choices (List or Dict)",
         "targets":[
             {
@@ -26,9 +26,9 @@ FiD Temporal takes in train/test Json files where each item has the following fo
     }
 ```
 
-Train/Test Json files for FiD Static can be converted from temporal data with `temporal_to_static_data_converter.py`.
+Train/Test Json files for FiD Static can be converted from temporal data with `temporal_to_static_data_converter.py`. For more information see the `data` folder.
 
 ## Dependencies
 
-[Tranformers](https://huggingface.co/docs/transformers/index) (version 3.0.2)
+[Tranformers](https://huggingface.co/docs/transformers/index) (version 3.0.2)  
 Code adapted from the [FiD repository](https://github.com/facebookresearch/FiD).
