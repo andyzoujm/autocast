@@ -1,6 +1,6 @@
 ## Contents
 
-This folder contains reference implementation for CC-NEWS retrieval.
+This folder contains reference implementation for downloading CC-NEWS and performing retrieval.
 
 ## Dependencies
 

@@ -12,7 +12,7 @@ Forecasting future world events is a challenging but valuable task. Forecasts of
 
 ## Autocast Dataset
 
-The latest version of the [Autocast dataset can be downloaded here](https://people.eecs.berkeley.edu/~hendrycks/autocast.tar.gz). The collection of [CC-NEWS articles can be downloaded here](https://drive.google.com/file/d/1-9bK_3fl41GyCeMrzfneItu5VT0Qx0rZ/view?usp=sharing). For more details on how to use the Autocast dataset and news articles, please refer to our short demonstration in `usage.ipynb`.
+The latest version of the [Autocast dataset can be downloaded here](https://people.eecs.berkeley.edu/~hendrycks/autocast.tar.gz). For more details on how to use the Autocast dataset and news articles, please refer to our short demonstration in `usage.ipynb`.
 
 Each question has the following fields:
   ```json
