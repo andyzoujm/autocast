@@ -49,6 +49,6 @@ If you find this useful in your research, please consider citing:
     @article{zouforecasting2022,
       title={Forecasting Future World Events with Neural Networks},
       author={Andy Zou and Tristan Xiao and Ryan Jia and Joe Kwon and Mantas Mazeika and Richard Li and Dawn Song and Jacob Steinhardt and Owain Evans and Dan Hendrycks},
-      journal={arXiv preprint arXiv:2206.15474},
+      journal={NeurIPS},
       year={2022}
     }
