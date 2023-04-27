@@ -4,3 +4,4 @@ torch
 faiss
 transformers
 scipy
+news-please
