@@ -5,3 +5,4 @@ faiss
 transformers
 scipy
 news-please
+sentencepiece
