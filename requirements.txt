@@ -1,0 +1,6 @@
+pandas
+datasets
+torch
+faiss
+transformers
+scipy
