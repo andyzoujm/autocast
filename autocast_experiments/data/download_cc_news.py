@@ -34,8 +34,7 @@ import os
 import sys
 import datetime
 from datetime import date
-
-from ..crawler import commoncrawl_crawler as commoncrawl_crawler
+from newsplease.crawler import commoncrawl_crawler
 
 __author__ = "Felix Hamborg"
 __copyright__ = "Copyright 2017"
@@ -44,9 +43,9 @@ __credits__ = ["Sebastian Nagel"]
 
 ############ YOUR CONFIG ############
 # download dir for warc files
-my_local_download_dir_warc = '/data/uid1785387/new_ccnews/cc_download_warc_2022_1_1/'
+my_local_download_dir_warc = 'dataset/warcfiles'
 # download dir for article
-my_local_download_dir_article = '/data/uid1785387/new_ccnews/cc_download_articles_2022_1_1/'
+my_local_download_dir_article = 'dataset/download_articles'
 # hosts (if None or empty list, any host is OK)
 my_filter_valid_hosts = []  # example: ['elrancaguino.cl']
 # start date (if None, any date is OK as start date), as datetime
@@ -115,6 +114,7 @@ def __get_pretty_filepath(path, article):
 
 
 def on_valid_article_extracted(article):
+
     """
     This function will be invoked for each article that was extracted successfully from the archived data and that
     satisfies the filter criteria.
