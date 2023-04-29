@@ -3,8 +3,6 @@ import time
 from datasets import load_dataset
 from datetime import datetime as dt
 
-# export HF_DATASETS_CACHE="/data/andyzou_jiaming/dataset_cache"
-
 time0 = time.time()
 
 cc_news = load_dataset("cc_news", split="train")
@@ -29,7 +27,6 @@ cc_news = cc_news.map(
 )
 cc_news = cc_news.sort("date")
 print("=== Done mapping and sorting")
-print(cc_news.features)
 
 print("=== Processed all articles", time.time() - time0)
 time0 = time.time()
