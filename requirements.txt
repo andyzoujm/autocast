@@ -6,3 +6,4 @@ transformers
 scipy
 news-please
 sentencepiece
+jupyterlab
