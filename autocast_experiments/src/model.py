@@ -12,20 +12,23 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 import numpy as np
 
+
 class FiDT5(transformers.T5ForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
         self.wrap_encoder()
 
     def forward_(self, **kwargs):
-        if 'input_ids' in kwargs:
-            kwargs['input_ids'] = kwargs['input_ids'].view(kwargs['input_ids'].size(0), -1)
-        if 'attention_mask' in kwargs:
-            kwargs['attention_mask'] = kwargs['attention_mask'].view(kwargs['attention_mask'].size(0), -1)
+        if "input_ids" in kwargs:
+            kwargs["input_ids"] = kwargs["input_ids"].view(
+                kwargs["input_ids"].size(0), -1
+            )
+        if "attention_mask" in kwargs:
+            kwargs["attention_mask"] = kwargs["attention_mask"].view(
+                kwargs["attention_mask"].size(0), -1
+            )
 
-        return super(FiDT5, self).forward(
-            **kwargs
-        )
+        return super(FiDT5, self).forward(**kwargs)
 
     # We need to resize as B x (N * L) instead of (B * N) x L here
     # because the T5 forward method uses the input tensors to infer
@@ -40,9 +43,7 @@ class FiDT5(transformers.T5ForConditionalGeneration):
         if attention_mask != None:
             attention_mask = attention_mask.view(attention_mask.size(0), -1)
         return super().forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            **kwargs
+            input_ids=input_ids, attention_mask=attention_mask, **kwargs
         )
 
     # We need to resize the inputs here, as the generate method expect 2D tensors
@@ -51,7 +52,7 @@ class FiDT5(transformers.T5ForConditionalGeneration):
         return super().generate(
             input_ids=input_ids.view(input_ids.size(0), -1),
             attention_mask=attention_mask.view(attention_mask.size(0), -1),
-            max_length=max_length
+            max_length=max_length,
         )
 
     # To get the decoder hidden state output for forecasting
@@ -115,10 +116,10 @@ class FiDT5(transformers.T5ForConditionalGeneration):
         bsz, n_heads, n_layers, _ = scores.size()
         # batch_size, n_head, n_layers, n_passages, text_maxlength
         scores = scores.view(bsz, n_heads, n_layers, n_passages, -1)
-        scores = scores.masked_fill(~context_mask[:, None, None], 0.)
+        scores = scores.masked_fill(~context_mask[:, None, None], 0.0)
         scores = scores.sum(dim=[1, 2, 4])
         ntokens = context_mask.sum(dim=[2]) * n_layers * n_heads
-        scores = scores/ntokens
+        scores = scores / ntokens
         return scores
 
     def overwrite_forward_crossattention(self):
@@ -130,31 +131,42 @@ class FiDT5(transformers.T5ForConditionalGeneration):
             attn = mod.layer[1].EncDecAttention
             attn.forward = types.MethodType(cross_attention_forward, attn)
 
+
 class EncoderWrapper(torch.nn.Module):
     """
     Encoder Wrapper for T5 Wrapper to obtain a Fusion-in-Decoder model.
     """
+
     def __init__(self, encoder, use_checkpoint=False):
         super().__init__()
 
         self.encoder = encoder
         apply_checkpoint_wrapper(self.encoder, use_checkpoint)
 
-    def forward(self, input_ids=None, attention_mask=None, **kwargs,):
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        **kwargs,
+    ):
         # total_length = n_passages * passage_length
         bsz, total_length = input_ids.shape
         passage_length = total_length // self.n_passages
-        input_ids = input_ids.view(bsz*self.n_passages, passage_length)
-        attention_mask = attention_mask.view(bsz*self.n_passages, passage_length)
+        input_ids = input_ids.view(bsz * self.n_passages, passage_length)
+        attention_mask = attention_mask.view(bsz * self.n_passages, passage_length)
         outputs = self.encoder(input_ids, attention_mask, **kwargs)
-        outputs = (outputs[0].view(bsz, self.n_passages*passage_length, -1), ) + outputs[1:]
+        outputs = (
+            outputs[0].view(bsz, self.n_passages * passage_length, -1),
+        ) + outputs[1:]
         return outputs
+
 
 class CheckpointWrapper(torch.nn.Module):
     """
     Wrapper replacing None outputs by empty tensors, which allows the use of
     checkpointing.
     """
+
     def __init__(self, module, use_checkpoint=False):
         super().__init__()
         self.module = module
@@ -163,26 +175,23 @@ class CheckpointWrapper(torch.nn.Module):
     def forward(self, hidden_states, attention_mask, position_bias, **kwargs):
         if self.use_checkpoint and self.training:
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
             def custom_forward(*inputs):
                 output = self.module(*inputs, **kwargs)
                 empty = torch.tensor(
-                    [],
-                    dtype=torch.float,
-                    device=output[0].device,
-                    requires_grad=True)
+                    [], dtype=torch.float, device=output[0].device, requires_grad=True
+                )
                 output = tuple(x if x is not None else empty for x in output)
                 return output
 
             output = torch.utils.checkpoint.checkpoint(
-                custom_forward,
-                hidden_states,
-                attention_mask,
-                position_bias
+                custom_forward, hidden_states, attention_mask, position_bias
             )
             output = tuple(x if x.size() != 0 else None for x in output)
         else:
             output = self.module(hidden_states, attention_mask, position_bias, **kwargs)
         return output
+
 
 def apply_checkpoint_wrapper(t5stack, use_checkpoint):
     """
@@ -195,24 +204,25 @@ def apply_checkpoint_wrapper(t5stack, use_checkpoint):
     block = nn.ModuleList(block)
     t5stack.block = block
 
+
 def cross_attention_forward(
-        self,
-        input,
-        mask=None,
-        kv=None,
-        position_bias=None,
-        past_key_value_state=None,
-        head_mask=None,
-        query_length=None,
-        use_cache=False,
-        output_attentions=False,
-    ):
+    self,
+    input,
+    mask=None,
+    kv=None,
+    position_bias=None,
+    past_key_value_state=None,
+    head_mask=None,
+    query_length=None,
+    use_cache=False,
+    output_attentions=False,
+):
     """
     This only works for computing cross attention over the input
     """
-    assert(kv != None)
-    assert(head_mask == None)
-    assert(position_bias != None or self.has_relative_attention_bias)
+    assert kv != None
+    assert head_mask == None
+    assert position_bias != None or self.has_relative_attention_bias
 
     bsz, qlen, dim = input.size()
     n_heads, d_heads = self.n_heads, self.d_kv
@@ -228,7 +238,7 @@ def cross_attention_forward(
     scores = torch.einsum("bnqd,bnkd->bnqk", q, k)
 
     if mask is not None:
-       scores += mask
+        scores += mask
 
     if position_bias is None:
         position_bias = self.compute_bias(qlen, klen)
@@ -257,54 +267,53 @@ def cross_attention_forward(
 
     return output
 
-class RetrieverConfig(transformers.BertConfig):
 
-    def __init__(self,
-                 indexing_dimension=768,
-                 apply_question_mask=False,
-                 apply_passage_mask=False,
-                 extract_cls=False,
-                 passage_maxlength=200,
-                 question_maxlength=40,
-                 projection=True,
-                 **kwargs):
+class RetrieverConfig(transformers.BertConfig):
+    def __init__(
+        self,
+        indexing_dimension=768,
+        apply_question_mask=False,
+        apply_passage_mask=False,
+        extract_cls=False,
+        passage_maxlength=200,
+        question_maxlength=40,
+        projection=True,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.indexing_dimension = indexing_dimension
         self.apply_question_mask = apply_question_mask
         self.apply_passage_mask = apply_passage_mask
-        self.extract_cls=extract_cls
+        self.extract_cls = extract_cls
         self.passage_maxlength = passage_maxlength
         self.question_maxlength = question_maxlength
         self.projection = projection
 
-class Retriever(transformers.PreTrainedModel):
 
+class Retriever(transformers.PreTrainedModel):
     config_class = RetrieverConfig
     base_model_prefix = "retriever"
 
     def __init__(self, config, initialize_wBERT=False):
         super().__init__(config)
-        assert config.projection or config.indexing_dimension == 768, \
-            'If no projection then indexing dimension must be equal to 768'
+        assert (
+            config.projection or config.indexing_dimension == 768
+        ), "If no projection then indexing dimension must be equal to 768"
         self.config = config
         if initialize_wBERT:
-            self.model = transformers.BertModel.from_pretrained('bert-base-uncased')
+            self.model = transformers.BertModel.from_pretrained("bert-base-uncased")
         else:
             self.model = transformers.BertModel(config)
         if self.config.projection:
             self.proj = nn.Linear(
-                self.model.config.hidden_size,
-                self.config.indexing_dimension
+                self.model.config.hidden_size, self.config.indexing_dimension
             )
             self.norm = nn.LayerNorm(self.config.indexing_dimension)
         self.loss_fct = torch.nn.KLDivLoss()
 
-    def forward(self,
-                question_ids,
-                question_mask,
-                passage_ids,
-                passage_mask,
-                gold_score=None):
+    def forward(
+        self, question_ids, question_mask, passage_ids, passage_mask, gold_score=None
+    ):
         question_output = self.embed_text(
             text_ids=question_ids,
             text_mask=question_mask,
@@ -322,9 +331,7 @@ class Retriever(transformers.PreTrainedModel):
         )
 
         score = torch.einsum(
-            'bd,bid->bi',
-            question_output,
-            passage_output.view(bsz, n_passages, -1)
+            "bd,bid->bi", question_output, passage_output.view(bsz, n_passages, -1)
         )
         score = score / np.sqrt(question_output.size(-1))
         if gold_score is not None:
@@ -336,8 +343,7 @@ class Retriever(transformers.PreTrainedModel):
 
     def embed_text(self, text_ids, text_mask, apply_mask=False, extract_cls=False):
         text_output = self.model(
-            input_ids=text_ids,
-            attention_mask=text_mask if apply_mask else None
+            input_ids=text_ids, attention_mask=text_mask if apply_mask else None
         )
         if type(text_output) is not tuple:
             text_output.to_tuple()
@@ -350,8 +356,10 @@ class Retriever(transformers.PreTrainedModel):
             text_output = text_output[:, 0]
         else:
             if apply_mask:
-                text_output = text_output.masked_fill(~text_mask[:, :, None], 0.)
-                text_output = torch.sum(text_output, dim=1) / torch.sum(text_mask, dim=1)[:, None]
+                text_output = text_output.masked_fill(~text_mask[:, :, None], 0.0)
+                text_output = (
+                    torch.sum(text_output, dim=1) / torch.sum(text_mask, dim=1)[:, None]
+                )
             else:
                 text_output = torch.mean(text_output, dim=1)
         return text_output
