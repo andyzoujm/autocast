@@ -7,3 +7,4 @@ transformers
 scipy
 sentencepiece
 jupyterlab
+black
