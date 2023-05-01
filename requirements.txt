@@ -1,9 +1,9 @@
+beir
 pandas
 datasets
 torch
 faiss
 transformers
 scipy
-news-please
 sentencepiece
 jupyterlab
