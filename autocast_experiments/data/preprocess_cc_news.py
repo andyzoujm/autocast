@@ -10,13 +10,17 @@ cc_news = load_dataset("cc_news", split="train")
 print("=== Loaded all articles", time.time() - time0)
 time0 = time.time()
 
+
 def strptime_flexible(date_string, format="%Y-%m-%d %H:%M:%S"):
     try:
         return dt.strptime(date_string, format)
     except ValueError:
         return None
 
-cc_news = cc_news.filter(lambda row: bool(strptime_flexible(row["date"]))) # drop articles with no date.
+
+cc_news = cc_news.filter(
+    lambda row: bool(strptime_flexible(row["date"]))
+)  # drop articles with no date.
 print("=== Done filtering")
 
 # Map needs two distinct names to work correctly, so we rename `date` column to `date_string`
