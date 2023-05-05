@@ -2,7 +2,6 @@ beir
 pandas
 datasets
 torch
-faiss
 transformers
 scipy
 sentencepiece

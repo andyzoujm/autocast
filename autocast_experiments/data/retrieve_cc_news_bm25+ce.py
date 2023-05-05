@@ -10,9 +10,9 @@
 """
 
 import json
+import os
 import time
-import datetime
-from datetime import date, timedelta
+
 import argparse
 import numpy as np
 import pandas as pd
@@ -87,64 +87,30 @@ def main():
     parser.add_argument("--out_file", type=str, required=True, help="output file")
     cfg = parser.parse_args()
 
-    # get questions & answers
-    questions = []
-    question_choices = []
-    question_answers = []
-    question_targets = []
-    question_ids = []
-    question_expiries = []
 
     ds_key = "autocast"
 
     assert cfg.beginning and cfg.expiry
-    start_date = datetime.datetime.strptime(cfg.beginning, "%Y-%m-%d")
-    end_date = datetime.datetime.strptime(cfg.expiry, "%Y-%m-%d")
+    dates = pd.date_range(cfg.beginning, cfg.expiry)
 
-    def daterange(start_date, end_date):
-        for n in range(int((end_date - start_date).days)):
-            yield start_date + timedelta(n)
+    # Get the absolute path of the current script
+    script_path = os.path.abspath(__file__)
 
-    dates = [str(date.date()) for date in daterange(start_date, end_date)]
-    date_to_question_idx = [[] for _ in dates]
+    # Get the directory containing the script
+    script_dir = os.path.dirname(script_path)
 
-    autocast_questions = json.load(open("autocast_questions.json"))
-    autocast_questions = [q for q in autocast_questions if q["status"] == "Resolved"]
-    for question_idx, ds_item in enumerate(autocast_questions):
-        question = ds_item["question"]
-        background = ds_item["background"]
-        answers = [ds_item["answer"]]
-        choices = ds_item["choices"]
-        qid = ds_item["id"]
-        expiry = ds_item["close_time"]
+    autocast_questions_path = os.path.join(script_dir, "autocast_questions.json")
 
-        if ds_item["qtype"] != "mc":
-            df = pd.DataFrame(ds_item["crowd"])
-            df["date"] = df["timestamp"].map(lambda x: x[:10])
-            crowd = df.groupby("date").mean().rename(columns={df.columns[1]: "target"})
-            crowd_preds = crowd
-        else:
-            df = pd.DataFrame(ds_item["crowd"])
-            df["date"] = df["timestamp"].map(lambda x: x[:10])
-            fs = np.array(df["forecast"].values.tolist())
-            for i in range(fs.shape[1]):
-                df[f"{i}"] = fs[:, i]
-            crowd = df.groupby("date").mean()
-            crowd_preds = crowd
+    autocast_questions = pd.json_normalize(
+        json.load(open(autocast_questions_path)),
+        record_path="crowd",
+        meta=["question", "answer", "choices", "id", "close_time"],
+    ).set_index("id")
 
-        crowd_preds.drop(crowd_preds.tail(1).index, inplace=True)  # avoid leakage
-        crowd_preds["ctxs"] = None
-        questions.append(question)
-        question_choices.append(choices)
-        question_answers.append(answers)
-        question_targets.append(crowd_preds)
-        question_ids.append(qid)
-        question_expiries.append(expiry)
-
-        for date_idx, date in enumerate(dates):
-            if date in crowd_preds.index:
-                date_to_question_idx[date_idx].append(question_idx)
-
+    autocast_questions["date"] = pd.to_datetime(autocast_questions["timestamp"]).dt.date
+    question_targets = autocast_questions.groupby(["id", "date"])["forecast"].apply(
+        lambda series: np.array(series.to_list()).mean(axis=0)
+    )
     time0 = time.time()
     print("Reading questions took %f sec.", time.time() - time0)
 
@@ -153,42 +119,25 @@ def main():
 
     set_verbosity_error()
 
-    cc_news_dataset = Dataset.load_from_disk("cc_news")
+    cc_news_path = os.path.join(script_dir, "cc_news")
+
+    cc_news_dataset = Dataset.load_from_disk(cc_news_path)
     cc_news_df = cc_news_dataset.to_pandas()  # load all data in memory
-    cc_news_df["id"] = cc_news_df.index
 
     for date_idx, date in enumerate(dates):
         cc_news_df_daily = cc_news_df[cc_news_df["date"] == date]
-        if len(cc_news_df_daily) == 0:
+        k = min(cfg.n_docs, cc_news_df_daily.shape[0])
+        if k == 0:
             continue
-
-        k = min(cfg.n_docs, len(cc_news_df_daily))
-
-        ids = cc_news_df_daily["id"].values.tolist()
-        titles = cc_news_df_daily["title"].values.tolist()
-        texts = cc_news_df_daily["text"].values.tolist()
-
-        daily_corpus = {}
-        for i in range(len(ids)):
-            json_obj = {}
-            json_obj["title"] = titles[i]
-            json_obj["text"] = texts[i]
-            daily_corpus[str(ids[i])] = json_obj
-
-        question_indices = date_to_question_idx[date_idx]
-        daily_queries = {}
-        for question_idx in question_indices:
-            question = questions[question_idx]
-            id = str(ds_key) + "_" + str(question_idx)
-            daily_queries[id] = question
-
+        daily_corpus = cc_news_df_daily.to_dict(orient="index")
+        daily_queries = autocast_questions.loc[autocast_questions["date"]==date, "question"].to_dict()
         if len(daily_queries) == 0:
             print("no queries for: " + str(date))
             continue
 
         model = BM25(
             hostname="http://localhost:9200",
-            index_name=ds_key + "_rainbowquartz_bm25_ce",
+            index_name="autocast",
             initialize=True,
         )
         retriever = EvaluateRetrieval(model)
