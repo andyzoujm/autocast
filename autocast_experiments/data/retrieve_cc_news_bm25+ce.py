@@ -51,17 +51,12 @@ def main():
 
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
-    autocast_questions = pd.read_json(
-        os.path.join(script_dir, "autocast_questions.json"),
-    )[["id", "question", "publish_time", "close_time"]].set_index("id")
-    autocast_questions["publish_time"] = pd.to_datetime(
-        autocast_questions["publish_time"]
-    ).dt.tz_localize(None)
-    autocast_questions["close_time"] = (
-        pd.to_datetime(autocast_questions["close_time"], errors="coerce")
-        .dt.tz_localize(None)
-        .fillna(pd.Timestamp.now())
-    )  # replaces distant dates not supported by pd.Timestamp with current timestamp.
+    question_path = os.path.join(script_dir, "autocast_questions.json")
+    questions = pd.read_json(question_path)[
+        ["id", "question", "publish_time", "close_time"]
+    ].set_index("id")
+    questions["publish_time"] = pd.to_datetime(questions["publish_time"])
+    questions["close_time"] = pd.to_datetime(questions["close_time"])
 
     from datasets import Dataset
     from datasets.utils.logging import set_verbosity_error
@@ -81,9 +76,8 @@ def main():
 
     for date in pd.date_range(cfg.beginning, cfg.expiry):
         daily_corpus = cc_news_df[cc_news_df["date"] == date].to_dict(orient="index")
-        daily_queries = autocast_questions.loc[
-            (autocast_questions["publish_time"] < date)
-            & (date < autocast_questions["close_time"]),
+        daily_queries = questions.loc[
+            (questions["publish_time"] < date) & (date < questions["close_time"]),
             "question",
         ].to_dict()
         if not daily_corpus or not daily_queries:
