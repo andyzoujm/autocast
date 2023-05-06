@@ -14,6 +14,7 @@ import os
 import argparse
 import pandas as pd
 import traceback
+from collections import defaultdict
 
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.lexical import BM25Search as BM25
@@ -65,6 +66,9 @@ def main():
     cross_encoder_model = CrossEncoder("cross-encoder/ms-marco-electra-base")
     reranker = Rerank(cross_encoder_model, batch_size=256)
 
+    # Initialize an empty dictionary with the desired structure
+    training_schedule = defaultdict(lambda: defaultdict(dict))
+
     for date in pd.date_range(cfg.beginning, cfg.expiry):
         daily_corpus = cc_news_df[cc_news_df["date"] == date].to_dict(orient="index")
         daily_queries = autocast_questions.loc[
@@ -101,7 +105,10 @@ def main():
             print(traceback.format_exc())
             continue
 
-        training_schedule[date.strftime("%Y-%m-%d")] = rerank_scores
+        # Update the training_schedule dictionary with the new structure
+        date_str = date.strftime("%Y-%m-%d")
+        for question_id, doc_scores in rerank_scores.items():
+            training_schedule[question_id][date_str] = doc_scores
 
     with open(cfg.out_file, "w", encoding="utf-8") as writer:
         writer.write(json.dumps(training_schedule, indent=4, ensure_ascii=False) + "\n")
