@@ -1,2 +1,3 @@
 autocast_experiments/data/cc_news/*
 __pycache__/
+*.json
