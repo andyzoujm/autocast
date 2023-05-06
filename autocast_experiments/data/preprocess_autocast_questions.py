@@ -1,32 +1,45 @@
 import json
+import os
 import pytz
 from dateutil import parser
 
-input_file = "autocast_questions.json"
 
-with open(input_file, "r") as infile:
-    data = json.load(infile)
+script_path = os.path.abspath(__file__)
+script_dir = os.path.dirname(script_path)
+question_file = os.path.join(script_dir, "autocast_questions.json")
 
-filtered_data = []
+with open(question_file, "r") as infile:
+    questions = json.load(infile)
 
-for question in data:
-    if question.get("status") == "Resolved":
-        publish_time = parser.parse(question.get("publish_time"))
-        close_time = parser.parse(question.get("close_time"))
+processed_questions = []
 
-        # Convert both datetimes to UTC
-        publish_time_utc = publish_time.astimezone(pytz.UTC)
-        close_time_utc = close_time.astimezone(pytz.UTC)
+for question in questions:
+    # Filter out active questions.
+    if question.get("status") == "Active":
+        continue
 
-        # Format the datetimes as strings without timezone information
-        publish_time_str = publish_time_utc.strftime("%Y-%m-%dT%H:%M:%S")
-        close_time_str = close_time_utc.strftime("%Y-%m-%dT%H:%M:%S")
+    # Format values.
+    if question.get("qtype") == "num":
+        question["choices"] = ["num"]
+    if question.get("qtype") == "t/f":
+        question["choices"] = ["yes"]
 
-        # Update the question with the new datetime strings
-        question["publish_time"] = publish_time_str
-        question["close_time"] = close_time_str
+    publish_time = parser.parse(question.get("publish_time"))
+    close_time = parser.parse(question.get("close_time"))
 
-        filtered_data.append(question)
+    # Convert both datetimes to UTC
+    publish_time_utc = publish_time.astimezone(pytz.UTC)
+    close_time_utc = close_time.astimezone(pytz.UTC)
 
-with open(input_file, "w") as outfile:
-    json.dump(filtered_data, outfile, ensure_ascii=False, indent=4)
+    # Format the datetimes as strings without timezone information
+    publish_time_str = publish_time_utc.strftime("%Y-%m-%d")
+    close_time_str = close_time_utc.strftime("%Y-%m-%d")
+
+    # Update the question with the new datetime strings
+    question["publish_time"] = publish_time_str
+    question["close_time"] = close_time_str
+
+    processed_questions.append(question)
+
+with open(question_file, "w") as outfile:
+    json.dump(processed_questions, outfile, ensure_ascii=False, indent=4)
