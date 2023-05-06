@@ -19,9 +19,7 @@ def process_crowd_forecasts(questions):
             pd.DataFrame(
                 data=[forecast["forecast"] for forecast in forecasts],
                 columns=question["choices"],
-                index=pd.to_datetime(
-                    [forecast["timestamp"] for forecast in forecasts]
-                ),
+                index=pd.to_datetime([forecast["timestamp"] for forecast in forecasts]),
             )
             .groupby(pd.Grouper(freq="D"))
             .mean()
@@ -43,17 +41,16 @@ def main():
     script_dir = os.path.dirname(script_path)
     question_file = os.path.join(script_dir, "autocast_questions.json")
     crowd_forecast_file = os.path.join(script_dir, "crowd_forecast.json")
-    
+
     # Load questions from the JSON file
     questions = load_questions(question_file)
-    
+
     # Process crowd forecasts
     crowd_forecasts = process_crowd_forecasts(questions)
-    
+
     # Save crowd forecasts to a JSON file
     save_crowd_forecasts(crowd_forecasts, crowd_forecast_file)
 
 
 if __name__ == "__main__":
     main()
-

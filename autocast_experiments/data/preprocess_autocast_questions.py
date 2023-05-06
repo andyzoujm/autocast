@@ -21,8 +21,12 @@ for question in questions:
     # Format values.
     if question.get("qtype") == "num":
         question["choices"] = ["num"]
-    if question.get("qtype") == "t/f":
+        question["answer"] = float(question["answer"])
+    elif question.get("qtype") == "t/f":
         question["choices"] = ["yes"]
+        question["answer"] = question["answer"] == "yes"
+    elif question.get("qtype") == "mc":
+        question["answer"] = ord(question["answer"]) - ord("A")
 
     publish_time = parser.parse(question.get("publish_time"))
     close_time = parser.parse(question.get("close_time"))

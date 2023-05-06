@@ -8,6 +8,7 @@ import time
 import sys
 import copy
 import pickle
+import pandas as pd
 import torch
 from torch._C import _LegacyVariableBase, _create_function_from_graph
 import torch.nn as nn
@@ -33,6 +34,7 @@ import src.model
 
 # from transformers import TransformerWrapper, Decoder
 from transformers import GPT2Model
+import pandas as pd
 
 
 def identity_collate_fn(data):
@@ -572,46 +574,25 @@ class ForecastingDataset(object):
 
     def __init__(
         self,
-        data,
+        schedule,
+        questions,
+        corpus,
+        crowd_forecasts,
         opt,
         max_seq_len=128,
         n_context=None,
-        over_sample=False,
         question_prefix="question:",
         title_prefix="title:",
         passage_prefix="context:",
         choices_prefix="choices:",
         bound_prefix="bounds:",
     ):
-        """
-        DATA SAMPLE:
-        {
-            "question_id": q_id,
-            "question": q,
-            "answers": q_answers,
-            "question_expiry": expiry,
-            "targets":[
-                {
-                    "date": index,
-                    "target": str(row["target"]),
-                    "ctxs": {
-                        "id": docs["id"][c],
-                        "title": docs["title"][c],
-                        "text": docs["text"][c],
-                        "score": str(score)
-                    }
-                }
-                for index, row in q_targets.iterrows()
-            ]
-        }
-        """
-        self.data = data
+        self.schedule = schedule
+        self.questions = questions
+        self.corpus = corpus
+        self.crowd_forecasts = crowd_forecasts
         self.opt = opt
         # adjust crowd to true targets
-        if self.opt.adjust_targets:
-            print("ADJUSTING TARGETS")
-        else:
-            print("KEEPING ORIGINAL TARGETS")
         self.max_seq_len = max_seq_len
         self.n_context = n_context
         self.question_prefix = question_prefix
@@ -624,147 +605,28 @@ class ForecastingDataset(object):
 
         # self.pre_filter(over_sample)
 
-    def pre_filter(self, over_sample):
-        valid_data = []
-
-        for example in self.data:
-            for i, day in enumerate(example["targets"]):
-                if day["ctxs"]:  # we can use this example
-                    # # label = example['answers'][0]
-                    # label = 'yes' if float(example['targets'][-1]['target']) > 0.5 else 'no'
-                    # if label not in self.data_by_class:
-                    #     self.data_by_class[label] = []
-                    # self.data_by_class[label].append(example)
-                    valid_data.append(example)
-                    break
-        self.data = valid_data
-
-        if over_sample:
-            self.over_sample()
-
-    def over_sample(self):
-        max_count = 0
-        for label in self.data_by_class:
-            max_count = max(max_count, len(self.data_by_class[label]))
-        data = []
-        for label in self.data_by_class:
-            class_data = self.data_by_class[label]
-            data.extend(class_data)
-            class_count = len(class_data)
-            over_samples = np.random.choice(
-                class_data, max_count - class_count, replace=True
-            )
-            data.extend(over_samples)
-
-        self.data = data
-
     def __len__(self):
-        # if not self.data_by_class_displayed:
-        #     output_str = ''
-        #     for label in self.data_by_class:
-        #         output_str += f"{len(self.data_by_class[label])} {label} "
-        #     print("# samples by class:", output_str)
-        #     self.data_by_class_displayed = True
         return len(self.data)
 
-    def get_category(self, example):
-        tf_choices = ["yes", "no", "Yes", "No"]
-        if isinstance(example["choices"], dict):
-            return 2
-        elif (
-            (
-                example["choices"][0] not in tf_choices
-                and example["choices"][1] not in tf_choices
-            )
-            or len(example["choices"]) > 2
-            or isinstance(example["targets"][0]["target"], list)
-        ):
-            return 1
-        else:
-            return 0
-
     def __getitem__(self, index):
-        example = self.data[index]
-        fid_examples = []
-        targets = []
-        cat = self.get_category(example)
-        length = min(len(example["choices"]), max_choice_len)
+        question = self.questions.get(index)
+        research_schedule = self.schedule.get(index)
+        research_materal = {doc_id: self.corpus[doc_id] for date in question for doc_id in date}
+        answer = self.question.get("answer")
+        qtype = self.question.get("qtype")
+        
+        # Fetch crowd forecasts.
+        crowd_forecasts = pd.from_dict(self.crowd_forecasts[index], orient="index")
+        targets = torch.tensor(crowd_forecasts.to_numpy()[:self.max_seq_len])
 
-        if cat == 0:
-            true_target = STR2BOOL[example["answers"][0]]
-        elif cat == 2:
-            true_target = float(example["answers"][0])
-        elif cat == 1:
-            true_target = int(ord(example["answers"][0]) - ord("A"))
-
-        has_ctxs = False
-        for i, day in enumerate(example["targets"]):
-            if not day["ctxs"]:  # if we don't have news articles
-                day["ctxs"] = []
-                continue
-
-            has_ctxs = True
-
-            if cat == 0 or cat == 2:
-                t = float(day["target"])
-                if self.opt.adjust_targets:
-                    t = (t + true_target) / 2
-                targets.append([t])
-            elif cat == 1:
-                targets_mc = [float(pred) for pred in day["target"][:length]]
-                total = sum(targets_mc)
-                t = [t / total for t in targets_mc]
-                if self.opt.adjust_targets:
-                    t = [
-                        (t[i] + 1) / 2 if i == true_target else t[i] / 2
-                        for i in range(len(t))
-                    ]
-                targets.append(t)
-
-            day_copy = copy.deepcopy(day)
-            day_copy["id"] = i
-            day_copy["question"] = example["question"]
-            day_copy["answers"] = example["answers"]  # TODO: use crowd as target?
-            day_copy["choices"] = example["choices"]
-            del day_copy["target"]
-            fid_examples.append(day_copy)
-
-        if not has_ctxs:
-            day_copy = copy.deepcopy(day)
-            day_copy["id"] = 0
-            day_copy["question"] = example["question"]
-            day_copy["answers"] = example["answers"]  # TODO: use crowd as target?
-            day_copy["choices"] = example["choices"]
-            del day_copy["target"]
-            if cat == 0 or cat == 2:
-                targets.append([float(true_target)])
-            elif cat == 1:
-                targets.append([float(i == true_target) for i in range(length)])
-            fid_examples.append(day_copy)
-
-        assert len(targets) == len(fid_examples)
-
-        fid_examples, targets = (
-            fid_examples[-self.max_seq_len :],
-            targets[-self.max_seq_len :],
-        )
-        targets = [torch.tensor(item) for item in targets]
-        targets = pad_sequence(
-            targets, batch_first=True, padding_value=-1.0
-        )  # pad the targets
-        targets_pad = torch.full((targets.size()[0], max_choice_len), -1.0)
-        targets_pad[: targets.size()[0], : targets.size()[1]] = targets
-
-        # truncated_label = example['tokenized_label'][-len(fid_examples):]
-        # truncated_input_id = example['tokenized_input_id'][-len(fid_examples):]
-        # truncated_input_mask = example['tokenized_input_mask'][-len(fid_examples):]
-        # for i, ex in enumerate(fid_examples):
-        #     ex['tokenized_label'] = truncated_label[i]
-        #     ex['tokenized_input_id'] = truncated_input_id[i]
-        #     ex['tokenized_input_mask'] = truncated_input_mask[i]
+        # Pad targets to be n x max_choice_len
+        targets_padded = torch.full((targets.size(0), max_choice_len), -1.0)
+        targets_padded[: targets.size(0), : targets.size(1)] = targets
 
         fid_dataset = src.forecasting_data_multihead.FiDDataset(
-            fid_examples,
+            question,
+            research_schedule,
+            research_materal,
             self.n_context,
             self.question_prefix,
             self.title_prefix,
@@ -772,10 +634,9 @@ class ForecastingDataset(object):
             self.choices_prefix,
             self.bound_prefix,
             max_choice_len,
-            cat,
         )
 
-        return fid_dataset, targets_pad, true_target, cat
+        return fid_dataset, targets_padded, answer, qtype
 
 
 def get_fid_outputs(model, dataset, opt, collator, mode):
@@ -841,24 +702,6 @@ def forecaster_collate_fn(examples, labels, true_labels, cats):
     assert examples.shape[:2] == mask.shape, (examples.shape[:2], mask.shape)
 
     return examples, mask, labels, true_labels, cats, seq_ends
-
-
-# def get_vanilla_transformer(fid_hidden_size, opt):
-#     model = TransformerWrapper(
-#         num_tokens = 1, # classification head
-#         max_seq_len = opt.max_seq_len,
-#         attn_layers = Decoder(
-#             dim = fid_hidden_size,
-#             depth = 12,
-#             heads = 8
-#         )
-#     )
-
-#     directly use hidden state features from FiD
-#     model.token_emb = nn.Linear(fid_hidden_size, fid_hidden_size)
-#     model = model.cuda()
-
-#     return model
 
 
 def get_gpt(fid_hidden_size, gpt_hidden_size, opt, model_name="gpt2"):

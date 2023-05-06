@@ -4,6 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import pandas as pd
 import torch
 import json
 
@@ -11,7 +12,9 @@ import json
 class FiDDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        data,
+        question,
+        research_schedule,
+        research_material,
         n_context=None,
         question_prefix="question:",
         title_prefix="title:",
@@ -21,7 +24,20 @@ class FiDDataset(torch.utils.data.Dataset):
         max_choice_len=12,
         cat=None,
     ):
-        self.data = data
+        self.date_index = pd.DatetimeIndex([date for date in research_material]).sort()
+        self.answer = question["answer"]
+        self.choices = choices
+
+        # Format the question.
+        self.question = question_prefix + " " + question["question"]
+        if question["qtype"] == "mc":
+            choices = question["choices"]
+            formatted_choices = [f"{i}: {choice}" for i, choice in enumerate(choices)]
+            choice_string = " | ".join(formatted_choices)
+            self.question = f"{self.question} {choices_prefix} {choice_string}."
+        
+        self.research_schedule = research_schedule
+        self.research_material = research_material
         self.n_context = n_context
         self.question_prefix = question_prefix
         self.title_prefix = title_prefix
@@ -29,84 +45,28 @@ class FiDDataset(torch.utils.data.Dataset):
         self.choices_prefix = choices_prefix
         self.bound_prefix = bound_prefix
         self.max_choice_len = max_choice_len
-        self.cat = cat
-        # self.sort_data()
 
     def __len__(self):
-        return len(self.data)
-
-    def get_target(self, example):
-        STR2BOOL = {"yes": 1, "Yes": 1, "no": 0, "No": 0}
-
-        if self.cat == 2:
-            return (
-                self.max_choice_len + 2 + 1
-            )  # structure: mc + (invalid choices) + t/f + re for integer labeling
-        elif self.cat == 1:
-            if ord(example["answers"][0]) - ord("A") + 1 > self.max_choice_len:
-                return self.max_choice_len
-            else:
-                return ord(example["answers"][0]) - ord("A")
-        elif self.cat == 0:
-            return STR2BOOL[example["answers"][0]] + self.max_choice_len + 1
+        return len(self.research_schedule)
 
     def __getitem__(self, index):
-        example = self.data[index]
-        question = self.question_prefix + " " + example["question"]
-        choices = example["choices"]
-        target = self.get_target(example)
-
-        # Append available choices for MC questions
-        if self.cat == 1:
-            choices = [str(i) + ": " + choices[i] for i in range(len(choices))]
-            question = (
-                question + " " + self.choices_prefix + " " + " | ".join(choices) + "."
-            )
-        elif self.cat == 2:
-            min, max, deriv = (
-                str(choices["min"]),
-                str(choices["max"]),
-                str(choices["deriv_ratio"]),
-            )
-            question = (
-                question
-                + " "
-                + self.bound_prefix
-                + " min: "
-                + min
-                + " | max: "
-                + max
-                + " | deriv: "
-                + deriv
-                + "."
-            )
-
-        if (
-            "ctxs" in example
-            and len(example["ctxs"]) > 0
-            and self.n_context is not None
-        ):
-            f = self.title_prefix + " {} " + self.passage_prefix + " {}"
-            if (
-                len(example["ctxs"]) < self.n_context
-            ):  # if we don't have enough articles
-                add_on = self.n_context - len(example["ctxs"])
-                example["ctxs"].extend([example["ctxs"][0]] * add_on)
-            contexts = example["ctxs"][: self.n_context]
-            passages = [f.format(c["title"], c["text"]) for c in contexts]
-            scores = [float(c["score"]) for c in contexts]
-            scores = torch.tensor(scores)
-            # TODO(egrave): do we want to keep this?
-            if len(contexts) == 0:
-                contexts = [question]
-        else:
-            passages, scores = None, None
-
+        date = self.date_index[index].strftime()
+        example = self.research_schedule[date]
+        scores = pd.DataFrame({"score": example}).rename_index("doc_ids")
+        docs = scores.join(self.research_material)
+        docs = docs.sample(n=self.n_context, replace=True)
+        scores = torch.tensor(docs["scores"].to_numpy())
+        passages = (
+            f"{self.title_prefix} "
+            + docs["title"]
+            + f" {self.passage_prefix} "
+            + docs["text"]
+        )
         return {
             "index": index,
-            "question": question,
-            "target": target,
-            "choices": choices,
+            "question": self.question,
+            "target": self.answer,
+            "choices": self.choices,
             "passages": passages,
             "scores": scores,
         }
