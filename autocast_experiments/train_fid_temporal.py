@@ -611,13 +611,15 @@ class ForecastingDataset(object):
     def __getitem__(self, index):
         question = self.questions.get(index)
         research_schedule = self.schedule.get(index)
-        research_materal = {doc_id: self.corpus[doc_id] for date in question for doc_id in date}
+        research_materal = {
+            doc_id: self.corpus[doc_id] for date in question for doc_id in date
+        }
         answer = self.question.get("answer")
         qtype = self.question.get("qtype")
-        
+
         # Fetch crowd forecasts.
         crowd_forecasts = pd.from_dict(self.crowd_forecasts[index], orient="index")
-        targets = torch.tensor(crowd_forecasts.to_numpy()[:self.max_seq_len])
+        targets = torch.tensor(crowd_forecasts.to_numpy()[: self.max_seq_len])
 
         # Pad targets to be n x max_choice_len
         targets_padded = torch.full((targets.size(0), max_choice_len), -1.0)

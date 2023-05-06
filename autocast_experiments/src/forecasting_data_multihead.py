@@ -35,7 +35,7 @@ class FiDDataset(torch.utils.data.Dataset):
             formatted_choices = [f"{i}: {choice}" for i, choice in enumerate(choices)]
             choice_string = " | ".join(formatted_choices)
             self.question = f"{self.question} {choices_prefix} {choice_string}."
-        
+
         self.research_schedule = research_schedule
         self.research_material = research_material
         self.n_context = n_context
