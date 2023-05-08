@@ -5,9 +5,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""
- Command line tool to get dense results and validate them
-"""
+
+# **Before running**: run preprocess_cc_news.py and download the autocast dataset 
+# from https://people.eecs.berkeley.edu/~hendrycks/autocast.tar.gz and extract the
+# file autocast_questions.json to this directory. Start up an instance of Elastic
+# Search in a separate terminal. For more information on setting up Elastic Search
+# see this repo's README.
+# 
+# This script writes a file called training_schedule.json to this directory.
+# The structure of the json file is 
+# { forecasting_question_id: { date: { cc_news_doc_id: score, ... }, ... }, ...}.
+# Forecasting questions will be included that were active between --beginning
+# and --expiry. A cap on the number of docs per question per day is set with
+# --n_docs. The n docs with the highest relevance score will be included.
 
 import json
 import os
@@ -105,7 +115,7 @@ def main():
             print(traceback.format_exc())
             continue
 
-        # Update the training_schedule dictionary with the new structure
+        # Update the training_schedule dictionary
         date_str = date.strftime("%Y-%m-%d")
         for question_id, doc_scores in rerank_scores.items():
             training_schedule[question_id][date_str] = doc_scores
