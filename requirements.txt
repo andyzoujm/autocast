@@ -1,5 +1,5 @@
 beir
-pandas
+pandas>=2.0.1
 datasets
 torch
 transformers

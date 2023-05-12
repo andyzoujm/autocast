@@ -34,7 +34,7 @@ print("=== Done mapping and sorting")
 
 # Add an ID column.
 ids = list(range(len(cc_news)))
-cc_news = cc_news.add_column("ids", ids)
+cc_news = cc_news.add_column("id", ids)
 
 print("=== Processed all articles", time.time() - time0)
 time0 = time.time()

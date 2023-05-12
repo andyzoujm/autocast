@@ -47,15 +47,14 @@ def main():
 
     cc_news_path = os.path.join(script_dir, "cc_news")
     cc_news_df = Dataset.load_from_disk(cc_news_path).to_pandas()
-    cc_news_df = cc_news_df.set_index("ids")
+    cc_news_df = cc_news_df.set_index("id")
     cc_news_df.index = cc_news_df.index.map(str)
-    training_schedule = {}
 
     # cross_encoder_model = CrossEncoder("cross-encoder/ms-marco-electra-base")
     # reranker = Rerank(cross_encoder_model, batch_size=256)
 
     # Initialize an empty dictionary with the desired structure
-    training_schedule = defaultdict(lambda: defaultdict(dict))
+    training_schedule = defaultdict(list)
 
     start_date = questions["publish_time"].min()
     end_date = questions["close_time"].max()
@@ -81,7 +80,6 @@ def main():
         except Exception as e:
             print("retrieval exception: " + str(e))
             continue
-
         # try:
         #     # CE reranking
         #     rerank_scores = reranker.rerank(
@@ -95,16 +93,16 @@ def main():
         #     print("retrieval exception:")
         #     print(traceback.format_exc())
         #     continue
-
         # Update the training_schedule dictionary with the new structure
         date_str = date.strftime("%Y-%m-%d")
         for question_id, doc_scores in scores.items():
-            doc_scores = {int(doc_id): score for doc_id, score in doc_scores.items()}
-            training_schedule[question_id][date_str] = doc_scores
-
+            for doc_id, score in doc_scores.items():
+                training_schedule[question_id].append(
+                    {"date": date_str, "doc_id": int(doc_id), "score": score}
+                )
     out_path = os.path.join(script_dir, cfg.out_file)
-    with open(out_path, "w", encoding="utf-8") as writer:
-        writer.write(json.dumps(training_schedule, indent=4, ensure_ascii=False) + "\n")
+    with open(out_path, "w") as outfile:
+        json.dump(training_schedule, outfile, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":

@@ -577,7 +577,7 @@ class ForecastingDataset:
 
     def __init__(
         self,
-        questions,
+        questions: pd.DataFrame,
         crowd,
         schedule,
         corpus,
@@ -613,26 +613,29 @@ class ForecastingDataset:
         return len(self.schedule)
 
     def __getitem__(self, index):
-        question_id = self.int_keys[index]
-        question = self.questions.get(question_id)
-        research_schedule = self.schedule.get(question_id)
-        crowd_forecasts = self.crowd[question_id]
-        # Find common keys
-        common_keys = research_schedule.keys() & crowd_forecasts.keys()
-
-        # Filter both dictionaries
-        research_schedule = {key: research_schedule[key] for key in common_keys}
-        crowd_forecasts = {key: crowd_forecasts[key] for key in common_keys}
+        question_data = self.questions.iloc[index, :]
+        question_id = question_data.name
+        q_schedule = self.schedule.get(question_id)
+        q_crowd = self.crowd.get(question_id)
+        q_schedule = pd.DataFrame(q_schedule).set_index("date")
+        q_crowd = pd.DataFrame.from_dict(q_crowd, orient="index")
+        q_schedule.index = pd.to_datetime(q_schedule.index)
+        q_crowd.index = pd.to_datetime(q_crowd.index)
+        truncated_common_dates = q_crowd.index.intersection(
+            q_schedule.index
+        ).sort_values(ascending=False)[: self.max_seq_len]
+        q_schedule = q_schedule.loc[truncated_common_dates, :]
+        q_crowd = q_crowd.loc[truncated_common_dates, :]
         research_materal = pd.DataFrame.from_dict(
             {
                 int(doc_id): self.corpus[int(doc_id)]
-                for date in research_schedule
-                for doc_id in research_schedule[date]
+                for date in q_schedule
+                for doc_id in q_schedule[date]
             },
             orient="index",
         ).rename_axis("doc_id")
-        answer = question.get("answer")
-        qtype = question.get("qtype")
+        answer = question_data.get("answer")
+        qtype = question_data.get("qtype")
         if qtype == "t/f":
             code = 0
         elif qtype == "mc":
@@ -640,16 +643,16 @@ class ForecastingDataset:
         elif qtype == "num":
             code = 2
 
-        crowd_forecasts = pd.DataFrame.from_dict(crowd_forecasts, orient="index")
-        targets = torch.tensor(crowd_forecasts.to_numpy()[: self.max_seq_len])
+        q_crowd = pd.DataFrame.from_dict(q_crowd, orient="index")
+        targets = torch.tensor(q_crowd.to_numpy()[: self.max_seq_len])
 
         # Pad targets to be n x max_choice_len
         targets_padded = torch.full((targets.size(0), max_choice_len), -1.0)
         targets_padded[: targets.size(0), : targets.size(1)] = targets
 
         fid_dataset = src.forecasting_data_multihead.FiDDataset(
-            question,
-            research_schedule,
+            question_data,
+            q_schedule,
             research_materal,
             self.n_context,
             self.question_prefix,
@@ -848,14 +851,12 @@ if __name__ == "__main__":
         Dataset.load_from_disk(ccnews_path)
         .to_pandas()
         .set_index("ids")
-        .to_dict(orient="index")
     )
 
     train_questions_path = os.path.join(script_dir, opt.train_questions)
     train_crowd_path = os.path.join(script_dir, opt.train_crowd)
     train_schedule_path = os.path.join(script_dir, opt.train_schedule)
-    with open(train_questions_path, "r") as datafile:
-        train_questions = json.load(datafile)
+    train_questions = pd.read_json(train_questions_path, orient="index")
     with open(train_crowd_path, "r") as datafile:
         train_crowd = json.load(datafile)
     with open(train_schedule_path, "r") as datafile:
@@ -880,8 +881,7 @@ if __name__ == "__main__":
     test_questions_path = os.path.join(script_dir, opt.test_questions)
     test_crowd_path = os.path.join(script_dir, opt.test_crowd)
     test_schedule_path = os.path.join(script_dir, opt.test_schedule)
-    with open(test_questions_path, "r") as datafile:
-        test_questions = json.load(datafile)
+    test_questions = pd.read_json(test_questions_path, orient="index")
     with open(test_crowd_path, "r") as datafile:
         test_crowd = json.load(datafile)
     with open(test_schedule_path, "r") as datafile:

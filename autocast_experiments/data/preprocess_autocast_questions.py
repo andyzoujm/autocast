@@ -40,7 +40,7 @@ for question in questions:
     if publish_time_utc > pd.Timestamp("2018-08-01", tz="utc"):
         continue
 
-    train_example = publish_time_utc > pd.Timestamp("2017-12-31", tz="utc")
+    train_example = publish_time_utc < pd.Timestamp("2017-12-31", tz="utc")
 
     # Format values.
     if question.get("qtype") == "num":
