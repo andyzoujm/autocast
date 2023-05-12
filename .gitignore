@@ -1,3 +1,6 @@
 autocast_experiments/data/cc_news/*
 __pycache__/
 *.json
+*.log
+checkpoint/*
+test.py

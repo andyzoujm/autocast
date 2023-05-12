@@ -18,8 +18,12 @@ export TRAINSIZE=4387 # number of train examples
 export WARMUP=100
 
 export RETR=bm25ce
-export TRAIN=data/temporal_train.json
-export EVAL=data/temporal_test.json
+export TEST_QUESTIONS=data/test_questions.json
+export TRAIN_QUESTIONS=data/train_questions.json
+export TRAIN_CROWD=data/train_crowd.json
+export TEST_CROWD=data/test_crowd.json
+export TRAIN_SCHEDULE=data/train_schedule.json
+export TEST_SCHEDULE=data/test_schedule.json
 
 # export LOAD=t5_${MODELSIZE}_top10_linear_wdecay1e-2_lr5e-5_bs8_ep10_retrbm25ce # load FiD Static model
 
@@ -32,8 +36,12 @@ python train_fid_temporal.py \
         --epochs $EPOCHS \
         --answer_maxlength 15 \
         --text_maxlength 512 \
-        --train_data $TRAIN \
-        --eval_data $EVAL \
+        --train_questions $TRAIN_QUESTIONS \
+        --test_questions $TEST_QUESTIONS \
+        --train_crowd $TRAIN_CROWD \
+        --test_crowd $TEST_CROWD \
+        --train_schedule $TRAIN_SCHEDULE \
+        --test_schedule $TEST_SCHEDULE \
         --n_context $TOPN \
         --name temporal_${READER}_${MODELSIZE}_top${TOPN}_seqlen${seqlen}_${SCHEDULERTYPE}_wdecay${WDECAY}_lr${LR}_bs${BSZ}_ep${EPOCHS}_retr${RETR}_finetune${finetune_encoder}_adjusttarget${adjust_targets} \
         --optim $OPTIMTYPE \

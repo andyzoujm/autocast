@@ -4,6 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
+import os
 import time
 import sys
 import copy
@@ -23,6 +25,7 @@ from torch.utils.data import (
     DistributedSampler,
     SequentialSampler,
     dataloader,
+    MapDataPipe,
 )
 from src.options import Options
 
@@ -565,7 +568,7 @@ def evaluate(model, fid_model, dataset, fid_collator, forecaster_collator, opt, 
 STR2BOOL = {"yes": 1, "Yes": 1, "no": 0, "No": 0}
 
 
-class ForecastingDataset(object):
+class ForecastingDataset:
     """
     Iterative predictions as sequence modeling
     where each token embeddings is replaced by
@@ -574,10 +577,10 @@ class ForecastingDataset(object):
 
     def __init__(
         self,
-        schedule,
         questions,
+        crowd,
+        schedule,
         corpus,
-        crowd_forecasts,
         opt,
         max_seq_len=128,
         n_context=None,
@@ -589,8 +592,8 @@ class ForecastingDataset(object):
     ):
         self.schedule = schedule
         self.questions = questions
+        self.crowd = crowd
         self.corpus = corpus
-        self.crowd_forecasts = crowd_forecasts
         self.opt = opt
         # adjust crowd to true targets
         self.max_seq_len = max_seq_len
@@ -602,23 +605,42 @@ class ForecastingDataset(object):
         self.bound_prefix = bound_prefix
         self.data_by_class_displayed = False
         self.data_by_class = {}
+        self.int_keys = [key for key in self.schedule]
 
         # self.pre_filter(over_sample)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.schedule)
 
     def __getitem__(self, index):
-        question = self.questions.get(index)
-        research_schedule = self.schedule.get(index)
-        research_materal = {
-            doc_id: self.corpus[doc_id] for date in question for doc_id in date
-        }
-        answer = self.question.get("answer")
-        qtype = self.question.get("qtype")
+        question_id = self.int_keys[index]
+        question = self.questions.get(question_id)
+        research_schedule = self.schedule.get(question_id)
+        crowd_forecasts = self.crowd[question_id]
+        # Find common keys
+        common_keys = research_schedule.keys() & crowd_forecasts.keys()
 
-        # Fetch crowd forecasts.
-        crowd_forecasts = pd.from_dict(self.crowd_forecasts[index], orient="index")
+        # Filter both dictionaries
+        research_schedule = {key: research_schedule[key] for key in common_keys}
+        crowd_forecasts = {key: crowd_forecasts[key] for key in common_keys}
+        research_materal = pd.DataFrame.from_dict(
+            {
+                int(doc_id): self.corpus[int(doc_id)]
+                for date in research_schedule
+                for doc_id in research_schedule[date]
+            },
+            orient="index",
+        ).rename_axis("doc_id")
+        answer = question.get("answer")
+        qtype = question.get("qtype")
+        if qtype == "t/f":
+            code = 0
+        elif qtype == "mc":
+            code = 1
+        elif qtype == "num":
+            code = 2
+
+        crowd_forecasts = pd.DataFrame.from_dict(crowd_forecasts, orient="index")
         targets = torch.tensor(crowd_forecasts.to_numpy()[: self.max_seq_len])
 
         # Pad targets to be n x max_choice_len
@@ -637,8 +659,7 @@ class ForecastingDataset(object):
             self.bound_prefix,
             max_choice_len,
         )
-
-        return fid_dataset, targets_padded, answer, qtype
+        return fid_dataset, targets_padded, answer, code
 
 
 def get_fid_outputs(model, dataset, opt, collator, mode):
@@ -763,14 +784,12 @@ if __name__ == "__main__":
     checkpoint_exists = checkpoint_path.exists()
     if opt.is_distributed:
         torch.distributed.barrier()
-    checkpoint_path.mkdir(parents=True, exist_ok=True)
+    # checkpoint_path.mkdir(parents=True, exist_ok=True)
     # if not checkpoint_exists and opt.is_main:
     #    options.print_options(opt)
     # checkpoint_path, checkpoint_exists = util.get_checkpoint_path(opt)
 
-    logger = src.util.init_logger(
-        opt.is_main, opt.is_distributed, checkpoint_path / "run.log"
-    )
+    logger = src.util.init_logger(opt.is_main, opt.is_distributed, "run.log")
 
     model_name = "t5-" + opt.model_size
     model_class = src.model.FiDT5
@@ -800,7 +819,7 @@ if __name__ == "__main__":
         )
         logger.info(f"Model loaded from {opt.model_path}")
 
-    model.set_checkpoint(opt.use_checkpoint)
+    # model.set_checkpoint(opt.use_checkpoint)
 
     if opt.is_distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -814,32 +833,67 @@ if __name__ == "__main__":
     model = model.cuda()
 
     # use golbal rank and world size to split the eval set on multiple gpus
-    train_examples = src.forecasting_data_multihead.load_data(
-        opt.train_data,
-        opt.n_context,
-        global_rank=opt.global_rank,
-        world_size=opt.world_size,
+    # train_examples = src.forecasting_data_multihead.load_data(
+    #     opt.train_data,
+    #     opt.n_context,
+    #     global_rank=opt.global_rank,
+    #     world_size=opt.world_size,
+    # )
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    from datasets import Dataset
+
+    ccnews_path = os.path.join(script_dir, "data/cc_news")
+    corpus = (
+        Dataset.load_from_disk(ccnews_path)
+        .to_pandas()
+        .set_index("ids")
+        .to_dict(orient="index")
     )
+
+    train_questions_path = os.path.join(script_dir, opt.train_questions)
+    train_crowd_path = os.path.join(script_dir, opt.train_crowd)
+    train_schedule_path = os.path.join(script_dir, opt.train_schedule)
+    with open(train_questions_path, "r") as datafile:
+        train_questions = json.load(datafile)
+    with open(train_crowd_path, "r") as datafile:
+        train_crowd = json.load(datafile)
+    with open(train_schedule_path, "r") as datafile:
+        train_schedule = json.load(datafile)
+
     train_dataset = ForecastingDataset(
-        train_examples,
+        train_questions,
+        train_crowd,
+        train_schedule,
+        corpus,
         opt,
         max_seq_len=opt.max_seq_len,
         n_context=opt.n_context,
-        over_sample=False,
     )
     # use golbal rank and world size to split the eval set on multiple gpus
-    eval_examples = src.forecasting_data_multihead.load_data(
-        opt.eval_data,
-        opt.n_context,
-        global_rank=opt.global_rank,
-        world_size=opt.world_size,
-    )
+    # eval_examples = src.forecasting_data_multihead.load_data(
+    #     opt.eval_data,
+    #     opt.n_context,
+    #     global_rank=opt.global_rank,
+    #     world_size=opt.world_size,
+    # )
+    test_questions_path = os.path.join(script_dir, opt.test_questions)
+    test_crowd_path = os.path.join(script_dir, opt.test_crowd)
+    test_schedule_path = os.path.join(script_dir, opt.test_schedule)
+    with open(test_questions_path, "r") as datafile:
+        test_questions = json.load(datafile)
+    with open(test_crowd_path, "r") as datafile:
+        test_crowd = json.load(datafile)
+    with open(test_schedule_path, "r") as datafile:
+        test_schedule = json.load(datafile)
     eval_dataset = ForecastingDataset(
-        eval_examples,
+        test_questions,
+        test_crowd,
+        test_schedule,
+        corpus,
         opt,
         max_seq_len=opt.max_seq_len,
         n_context=opt.n_context,
-        over_sample=False,
     )
 
     # initialize forecaster here

@@ -62,10 +62,22 @@ class Options:
 
     def add_reader_options(self):
         self.parser.add_argument(
-            "--train_data", type=str, default="none", help="path of train data"
+            "--train_questions", type=str, default="none", help="path of train data"
         )
         self.parser.add_argument(
-            "--eval_data", type=str, default="none", help="path of eval data"
+            "--train_crowd", type=str, default="none", help="path of train data"
+        )
+        self.parser.add_argument(
+            "--train_schedule", type=str, default="none", help="path of train data"
+        )
+        self.parser.add_argument(
+            "--test_questions", type=str, default="none", help="path of train data"
+        )
+        self.parser.add_argument(
+            "--test_crowd", type=str, default="none", help="path of train data"
+        )
+        self.parser.add_argument(
+            "--test_schedule", type=str, default="none", help="path of train data"
         )
         self.parser.add_argument("--model_size", type=str, default="base")
         self.parser.add_argument(

@@ -24,15 +24,18 @@ class FiDDataset(torch.utils.data.Dataset):
         max_choice_len=12,
         cat=None,
     ):
-        self.date_index = pd.DatetimeIndex([date for date in research_material]).sort()
+        self.date_index = pd.DatetimeIndex(
+            [date for date in research_schedule]
+        ).sort_values()
         self.answer = question["answer"]
-        self.choices = choices
+        self.choices = question["choices"]
+        self.qtype = question["qtype"]
 
         # Format the question.
         self.question = question_prefix + " " + question["question"]
         if question["qtype"] == "mc":
             choices = question["choices"]
-            formatted_choices = [f"{i}: {choice}" for i, choice in enumerate(choices)]
+            formatted_choices = [f"{i+1}: {choice}" for i, choice in enumerate(choices)]
             choice_string = " | ".join(formatted_choices)
             self.question = f"{self.question} {choices_prefix} {choice_string}."
 
@@ -50,12 +53,15 @@ class FiDDataset(torch.utils.data.Dataset):
         return len(self.research_schedule)
 
     def __getitem__(self, index):
-        date = self.date_index[index].strftime()
+        date = self.date_index[index].strftime("%Y-%m-%d")
         example = self.research_schedule[date]
-        scores = pd.DataFrame({"score": example}).rename_index("doc_ids")
+
+        scores = pd.DataFrame({"score": example}).rename_axis("doc_ids")
+        scores.index = scores.index.map(int)
+
         docs = scores.join(self.research_material)
         docs = docs.sample(n=self.n_context, replace=True)
-        scores = torch.tensor(docs["scores"].to_numpy())
+        scores = torch.tensor(docs["score"].to_numpy())
         passages = (
             f"{self.title_prefix} "
             + docs["title"]
@@ -65,7 +71,7 @@ class FiDDataset(torch.utils.data.Dataset):
         return {
             "index": index,
             "question": self.question,
-            "target": self.answer,
+            "target": self.get_target(),
             "choices": self.choices,
             "passages": passages,
             "scores": scores,
@@ -79,6 +85,15 @@ class FiDDataset(torch.utils.data.Dataset):
 
     def get_example(self, index):
         return self.data[index]
+        return len(self.data)
+
+    def get_target(self):
+        if self.qtype == "mc":
+            return self.answer
+        elif self.qtype == "t/f":
+            return self.max_choice_len + self.answer
+        elif self.qtype == "num":
+            return self.max_choice_len + 2
 
 
 def encode_passages(batch_text_passages, tokenizer, max_length):
@@ -97,7 +112,7 @@ def encode_passages(batch_text_passages, tokenizer, max_length):
 
     passage_ids = torch.cat(passage_ids, dim=0)
     passage_masks = torch.cat(passage_masks, dim=0)
-    return passage_ids, passage_masks.bool()
+    return passage_ids.int(), passage_masks.bool()
 
 
 class Collator(object):

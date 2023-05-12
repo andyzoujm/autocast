@@ -32,6 +32,10 @@ cc_news = cc_news.map(
 cc_news = cc_news.sort("date")
 print("=== Done mapping and sorting")
 
+# Add an ID column.
+ids = list(range(len(cc_news)))
+cc_news = cc_news.add_column("ids", ids)
+
 print("=== Processed all articles", time.time() - time0)
 time0 = time.time()
 

@@ -5,20 +5,9 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-
-# **Before running**: run preprocess_cc_news.py and download the autocast dataset 
-# from https://people.eecs.berkeley.edu/~hendrycks/autocast.tar.gz and extract the
-# file autocast_questions.json to this directory. Start up an instance of Elastic
-# Search in a separate terminal. For more information on setting up Elastic Search
-# see this repo's README.
-# 
-# This script writes a file called training_schedule.json to this directory.
-# The structure of the json file is 
-# { forecasting_question_id: { date: { cc_news_doc_id: score, ... }, ... }, ...}.
-# Forecasting questions will be included that were active between --beginning
-# and --expiry. A cap on the number of docs per question per day is set with
-# --n_docs. The n docs with the highest relevance score will be included.
-
+"""
+ Command line tool to get dense results and validate them
+"""
 import json
 import os
 import argparse
@@ -35,26 +24,19 @@ from beir.reranking import Rerank
 def main():
     parser = argparse.ArgumentParser(description="Arguments for BM25+CE retriever.")
     parser.add_argument(
-        "--beginning", type=str, required=True, help="startg retrieving on this date"
-    )
-    parser.add_argument(
-        "--expiry", type=str, required=True, help="finish retrieving on this date"
-    )
-    parser.add_argument(
         "--n_docs",
         type=int,
         required=True,
         help="retrieve n daily articles for each question",
     )
+    parser.add_argument("--in_file", type=str, required=True, help="In file")
     parser.add_argument("--out_file", type=str, required=True, help="output file")
     cfg = parser.parse_args()
 
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
-    question_path = os.path.join(script_dir, "autocast_questions.json")
-    questions = pd.read_json(question_path)[
-        ["id", "question", "publish_time", "close_time"]
-    ].set_index("id")
+    question_path = os.path.join(script_dir, cfg.in_file)
+    questions = pd.read_json(question_path, orient="index")
     questions["publish_time"] = pd.to_datetime(questions["publish_time"])
     questions["close_time"] = pd.to_datetime(questions["close_time"])
 
@@ -65,17 +47,22 @@ def main():
 
     cc_news_path = os.path.join(script_dir, "cc_news")
     cc_news_df = Dataset.load_from_disk(cc_news_path).to_pandas()
+    cc_news_df = cc_news_df.set_index("ids")
     cc_news_df.index = cc_news_df.index.map(str)
     training_schedule = {}
 
-    cross_encoder_model = CrossEncoder("cross-encoder/ms-marco-electra-base")
-    reranker = Rerank(cross_encoder_model, batch_size=256)
+    # cross_encoder_model = CrossEncoder("cross-encoder/ms-marco-electra-base")
+    # reranker = Rerank(cross_encoder_model, batch_size=256)
 
     # Initialize an empty dictionary with the desired structure
     training_schedule = defaultdict(lambda: defaultdict(dict))
 
-    for date in pd.date_range(cfg.beginning, cfg.expiry):
-        daily_corpus = cc_news_df[cc_news_df["date"] == date].to_dict(orient="index")
+    start_date = questions["publish_time"].min()
+    end_date = questions["close_time"].max()
+    for date in pd.date_range(start_date, end_date):
+        daily_corpus = cc_news_df[cc_news_df["date"].dt.date == date.date()].to_dict(
+            orient="index"
+        )
         daily_queries = questions.loc[
             (questions["publish_time"] < date) & (date < questions["close_time"]),
             "question",
@@ -87,7 +74,7 @@ def main():
             index_name="autocast",
             initialize=True,
         )
-        retriever = EvaluateRetrieval(model)
+        retriever = EvaluateRetrieval(model, k_values=[cfg.n_docs])
         try:
             scores = retriever.retrieve(daily_corpus, daily_queries)
             print("retrieval done")
@@ -95,26 +82,28 @@ def main():
             print("retrieval exception: " + str(e))
             continue
 
-        try:
-            # CE reranking
-            rerank_scores = reranker.rerank(
-                daily_corpus,
-                daily_queries,
-                scores,
-                top_k=min(100, cfg.n_docs, len(daily_corpus)),
-            )
-            print("reranking done")
-        except Exception as e:
-            print("retrieval exception:")
-            print(traceback.format_exc())
-            continue
+        # try:
+        #     # CE reranking
+        #     rerank_scores = reranker.rerank(
+        #         daily_corpus,
+        #         daily_queries,
+        #         scores,
+        #         top_k=min(100, cfg.n_docs, len(daily_corpus)),
+        #     )
+        #     print("reranking done")
+        # except Exception as e:
+        #     print("retrieval exception:")
+        #     print(traceback.format_exc())
+        #     continue
 
-        # Update the training_schedule dictionary
+        # Update the training_schedule dictionary with the new structure
         date_str = date.strftime("%Y-%m-%d")
-        for question_id, doc_scores in rerank_scores.items():
+        for question_id, doc_scores in scores.items():
+            doc_scores = {int(doc_id): score for doc_id, score in doc_scores.items()}
             training_schedule[question_id][date_str] = doc_scores
 
-    with open(cfg.out_file, "w", encoding="utf-8") as writer:
+    out_path = os.path.join(script_dir, cfg.out_file)
+    with open(out_path, "w", encoding="utf-8") as writer:
         writer.write(json.dumps(training_schedule, indent=4, ensure_ascii=False) + "\n")
 
 
