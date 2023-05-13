@@ -4,3 +4,4 @@ __pycache__/
 *.log
 checkpoint/*
 test.py
+*.obj

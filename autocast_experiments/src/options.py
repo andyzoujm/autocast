@@ -24,6 +24,7 @@ class Options:
         self.parser.add_argument("--train_data_size", type=int, default=0)
         self.parser.add_argument("--total_steps", type=int, default=1000)
         self.parser.add_argument("--epochs", type=int, default=0)
+        self.parser.add_argument("--is_main", type=bool, default=True)
         self.parser.add_argument(
             "--scheduler_steps",
             type=int,
@@ -62,22 +63,22 @@ class Options:
 
     def add_reader_options(self):
         self.parser.add_argument(
-            "--train_questions", type=str, default="none", help="path of train data"
+            "--train_questions", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--train_crowd", type=str, default="none", help="path of train data"
+            "--train_crowd", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--train_schedule", type=str, default="none", help="path of train data"
+            "--train_schedule", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--test_questions", type=str, default="none", help="path of train data"
+            "--test_questions", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--test_crowd", type=str, default="none", help="path of train data"
+            "--test_crowd", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--test_schedule", type=str, default="none", help="path of train data"
+            "--test_schedule", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument("--model_size", type=str, default="base")
         self.parser.add_argument(
@@ -106,10 +107,10 @@ class Options:
 
     def add_retriever_options(self):
         self.parser.add_argument(
-            "--train_data", type=str, default="none", help="path of train data"
+            "--train_data", type=str, default=None, help="path of train data"
         )
         self.parser.add_argument(
-            "--eval_data", type=str, default="none", help="path of eval data"
+            "--eval_data", type=str, default=None, help="path of eval data"
         )
         self.parser.add_argument("--indexing_dimension", type=int, default=768)
         self.parser.add_argument(
@@ -151,7 +152,7 @@ class Options:
             help="models are saved here",
         )
         self.parser.add_argument(
-            "--model_path", type=str, default="none", help="path for retraining"
+            "--model_path", type=str, default=None, help="path for retraining"
         )
 
         # dataset parameters

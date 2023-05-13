@@ -24,9 +24,7 @@ class FiDDataset(torch.utils.data.Dataset):
         max_choice_len=12,
         cat=None,
     ):
-        self.date_index = pd.DatetimeIndex(
-            [date for date in research_schedule]
-        ).sort_values()
+        
         self.answer = question["answer"]
         self.choices = question["choices"]
         self.qtype = question["qtype"]
@@ -39,7 +37,7 @@ class FiDDataset(torch.utils.data.Dataset):
             choice_string = " | ".join(formatted_choices)
             self.question = f"{self.question} {choices_prefix} {choice_string}."
 
-        self.research_schedule = research_schedule
+        self.research_schedule = research_schedule.sort_index(ascending=False)
         self.research_material = research_material
         self.n_context = n_context
         self.question_prefix = question_prefix
@@ -50,15 +48,11 @@ class FiDDataset(torch.utils.data.Dataset):
         self.max_choice_len = max_choice_len
 
     def __len__(self):
-        return len(self.research_schedule)
+        return len(self.research_schedule.index.unique())
 
     def __getitem__(self, index):
-        date = self.date_index[index].strftime("%Y-%m-%d")
-        example = self.research_schedule[date]
-
-        scores = pd.DataFrame({"score": example}).rename_axis("doc_ids")
-        scores.index = scores.index.map(int)
-
+        date = self.research_schedule.index.unique()[index]
+        scores = self.research_schedule.loc[[date],:].set_index("doc_id")
         docs = scores.join(self.research_material)
         docs = docs.sample(n=self.n_context, replace=True)
         scores = torch.tensor(docs["score"].to_numpy())
@@ -89,9 +83,9 @@ class FiDDataset(torch.utils.data.Dataset):
 
     def get_target(self):
         if self.qtype == "mc":
-            return self.answer
+            return int(self.answer)
         elif self.qtype == "t/f":
-            return self.max_choice_len + self.answer
+            return self.max_choice_len + int(self.answer)
         elif self.qtype == "num":
             return self.max_choice_len + 2
 
@@ -103,7 +97,7 @@ def encode_passages(batch_text_passages, tokenizer, max_length):
         p = tokenizer.batch_encode_plus(
             text_passages,
             max_length=max_length,
-            pad_to_max_length=True,
+            padding="max_length",
             return_tensors="pt",
             truncation=True,
         )

@@ -536,7 +536,10 @@ def evaluate(model, fid_model, dataset, fid_collator, forecaster_collator, opt, 
     exactmatch = em_tf + em_mc + em_re
     my_predictions = my_preds_tf + my_preds_mc + my_preds_re
 
-    with open(checkpoint_path / f"results_epoch{epoch}.obj", "wb") as f:
+    if not checkpoint_path.exists():
+        checkpoint_path.mkdir()
+    outpath = checkpoint_path / f"results_epoch{epoch}.obj"
+    with open(outpath, "wb") as f:
         pickle.dump(raw_logits, f)
 
     if len(em_tf) == 0:
@@ -590,8 +593,9 @@ class ForecastingDataset:
         choices_prefix="choices:",
         bound_prefix="bounds:",
     ):
+        self.corpus = corpus.rename_axis("doc_id")
         self.schedule = schedule
-        self.questions = questions
+        self.questions = questions.loc[schedule.keys(),:]
         self.crowd = crowd
         self.corpus = corpus
         self.opt = opt
@@ -617,7 +621,10 @@ class ForecastingDataset:
         question_id = question_data.name
         q_schedule = self.schedule.get(question_id)
         q_crowd = self.crowd.get(question_id)
-        q_schedule = pd.DataFrame(q_schedule).set_index("date")
+        q_schedule = pd.DataFrame(q_schedule)
+        if "date" not in q_schedule.columns:
+            print("stop here")
+        q_schedule = q_schedule.set_index("date")
         q_crowd = pd.DataFrame.from_dict(q_crowd, orient="index")
         q_schedule.index = pd.to_datetime(q_schedule.index)
         q_crowd.index = pd.to_datetime(q_crowd.index)
@@ -626,14 +633,7 @@ class ForecastingDataset:
         ).sort_values(ascending=False)[: self.max_seq_len]
         q_schedule = q_schedule.loc[truncated_common_dates, :]
         q_crowd = q_crowd.loc[truncated_common_dates, :]
-        research_materal = pd.DataFrame.from_dict(
-            {
-                int(doc_id): self.corpus[int(doc_id)]
-                for date in q_schedule
-                for doc_id in q_schedule[date]
-            },
-            orient="index",
-        ).rename_axis("doc_id")
+        research_materal = self.corpus.loc[q_schedule["doc_id"], :]
         answer = question_data.get("answer")
         qtype = question_data.get("qtype")
         if qtype == "t/f":
@@ -643,8 +643,7 @@ class ForecastingDataset:
         elif qtype == "num":
             code = 2
 
-        q_crowd = pd.DataFrame.from_dict(q_crowd, orient="index")
-        targets = torch.tensor(q_crowd.to_numpy()[: self.max_seq_len])
+        targets = torch.tensor(q_crowd.to_numpy())
 
         # Pad targets to be n x max_choice_len
         targets_padded = torch.full((targets.size(0), max_choice_len), -1.0)
@@ -783,16 +782,10 @@ if __name__ == "__main__":
     src.slurm.init_distributed_mode(opt)
     src.slurm.init_signal_handler()
 
-    checkpoint_path = Path(opt.checkpoint_dir) / opt.name
-    checkpoint_exists = checkpoint_path.exists()
-    if opt.is_distributed:
-        torch.distributed.barrier()
-    # checkpoint_path.mkdir(parents=True, exist_ok=True)
-    # if not checkpoint_exists and opt.is_main:
-    #    options.print_options(opt)
-    # checkpoint_path, checkpoint_exists = util.get_checkpoint_path(opt)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(script_dir, "run.log")
 
-    logger = src.util.init_logger(opt.is_main, opt.is_distributed, "run.log")
+    logger = src.util.init_logger(opt.is_main, opt.is_distributed, log_path)
 
     model_name = "t5-" + opt.model_size
     model_class = src.model.FiDT5
@@ -803,27 +796,25 @@ if __name__ == "__main__":
         opt.text_maxlength, tokenizer, answer_maxlength=opt.answer_maxlength
     )
 
-    if not checkpoint_exists and opt.model_path == "none":
+    
+    if opt.model_path:
+        checkpoint_path = Path(script_dir) / "checkpoint" / opt.model_path
+    else:
+        checkpoint_path = Path(script_dir) / "checkpoint" / "latest"
+
+    if checkpoint_path.exists():
+        model, optimizer, scheduler, opt_checkpoint, step, best_dev_em = src.util.load(
+            model_class, checkpoint_path, opt, reset_params=True
+        )
+        logger.info(f"Model loaded from {checkpoint_path}")
+    else:
         t5 = transformers.T5ForConditionalGeneration.from_pretrained(model_name)
         model = src.model.FiDT5(t5.config)
         model.load_t5(t5.state_dict())
         model = model.to(opt.local_rank)
         optimizer, scheduler = src.util.set_optim(opt, model)
         step, best_dev_em = 0, 0.0
-    elif opt.model_path == "none":
-        load_path = checkpoint_path / "checkpoint" / "latest"
-        model, optimizer, scheduler, opt_checkpoint, step, best_dev_em = src.util.load(
-            model_class, load_path, opt, reset_params=False
-        )
-        logger.info(f"Model loaded from {load_path}")
-    else:
-        model, optimizer, scheduler, opt_checkpoint, step, best_dev_em = src.util.load(
-            model_class, opt.model_path, opt, reset_params=True
-        )
-        logger.info(f"Model loaded from {opt.model_path}")
-
-    # model.set_checkpoint(opt.use_checkpoint)
-
+        
     if opt.is_distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model,
@@ -842,15 +833,13 @@ if __name__ == "__main__":
     #     global_rank=opt.global_rank,
     #     world_size=opt.world_size,
     # )
-    script_path = os.path.abspath(__file__)
-    script_dir = os.path.dirname(script_path)
     from datasets import Dataset
 
     ccnews_path = os.path.join(script_dir, "data/cc_news")
     corpus = (
         Dataset.load_from_disk(ccnews_path)
         .to_pandas()
-        .set_index("ids")
+        .set_index("id")
     )
 
     train_questions_path = os.path.join(script_dir, opt.train_questions)
